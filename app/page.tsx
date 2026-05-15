@@ -1,5 +1,7 @@
 // ===================================================
 // 메인 가계부 화면
+// - 영수증/이미지 업로드가 주 입력 방법
+// - 테이블 최하단 행에서 직접 타이핑도 가능
 // ===================================================
 
 'use client';
@@ -12,23 +14,19 @@ import MonthTabs from '@/components/MonthTabs';
 import Dashboard from '@/components/Dashboard';
 import ExpenseTable from '@/components/ExpenseTable';
 import FilterBar from '@/components/FilterBar';
-import AddExpenseRow from '@/components/AddExpenseRow';
 import ReceiptUploader from '@/components/ReceiptUploader';
 import ExcelImportExport from '@/components/ExcelImportExport';
-import { Settings, Camera, PlusCircle, ChevronUp, ChevronDown } from 'lucide-react';
+import { Settings, Camera, ChevronUp, ChevronDown, BarChart2 } from 'lucide-react';
 
 export default function HomePage() {
-  const { settings, setInitialized, expenses } = useBudgetStore();
+  const { settings, setInitialized } = useBudgetStore();
   const [showWelcome, setShowWelcome] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(true);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
 
-  // 첫 실행 시 환영 모달 표시
   useEffect(() => {
-    if (!settings.hasInitialized) {
-      setShowWelcome(true);
-    }
+    if (!settings.hasInitialized) setShowWelcome(true);
   }, [settings.hasInitialized]);
 
   function closeWelcome() {
@@ -37,48 +35,57 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFF8F9]">
+    <div className="min-h-screen bg-[#FFF8F9] flex flex-col">
       <Toaster
         position="top-center"
         toastOptions={{
           style: {
             fontFamily: 'Noto Sans KR, sans-serif',
             borderRadius: '12px',
-            background: '#fff',
-            color: '#333',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            fontSize: '13px',
           },
         }}
       />
 
-      {/* ── 상단 헤더 ── */}
-      <header className="bg-white border-b border-pink-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-soft">
+      {/* ── 헤더 ── */}
+      <header className="bg-white border-b border-pink-100 px-3 py-2.5 flex items-center justify-between sticky top-0 z-40 shadow-soft">
         <div className="flex items-center gap-2">
-          <span className="text-xl">🌸</span>
-          <h1 className="text-base font-bold text-pink-700">아맹이 가계뿌</h1>
+          <span className="text-lg">🌸</span>
+          <h1 className="text-sm font-bold text-pink-700">아맹이 가계뿌</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* 통계 토글 */}
+          <button
+            onClick={() => setShowDashboard((v) => !v)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl transition-colors ${
+              showDashboard ? 'bg-purple-100 text-purple-700' : 'text-gray-400 hover:bg-gray-100'
+            }`}
+          >
+            <BarChart2 size={14} />
+            <span className="hidden sm:inline">통계</span>
+          </button>
+
+          {/* 필터 토글 (모바일용) */}
+          <button
+            onClick={() => setShowFilter((v) => !v)}
+            className={`lg:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl transition-colors ${
+              showFilter ? 'bg-pink-100 text-pink-700' : 'text-gray-400 hover:bg-gray-100'
+            }`}
+          >
+            🔍
+          </button>
+
           {/* 엑셀 가져오기/내보내기 */}
           <ExcelImportExport />
-
-          {/* 영수증 업로드 */}
-          <button
-            onClick={() => setShowReceipt(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-sm rounded-xl transition-colors"
-            title="영수증 사진으로 자동 입력"
-          >
-            <Camera size={15} />
-            <span className="hidden sm:inline">영수증</span>
-          </button>
 
           {/* 설정 */}
           <Link
             href="/settings"
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
             title="설정"
           >
-            <Settings size={18} />
+            <Settings size={16} />
           </Link>
         </div>
       </header>
@@ -87,52 +94,38 @@ export default function HomePage() {
       <MonthTabs />
 
       {/* ── 대시보드 (접기/펼치기) ── */}
-      <div className="border-b border-pink-50">
+      {showDashboard && (
+        <div className="border-b border-pink-50 fade-in">
+          <Dashboard />
+        </div>
+      )}
+
+      {/* ── 이미지로 추가 버튼 (메인 액션) ── */}
+      <div className="px-3 pt-3 pb-2">
         <button
-          onClick={() => setShowDashboard((v) => !v)}
-          className="w-full flex items-center justify-center gap-1 py-1 text-xs text-gray-400 hover:text-gray-600 hover:bg-pink-50/50 transition-colors"
+          onClick={() => setShowReceipt(true)}
+          className="w-full flex items-center justify-center gap-2.5 py-3 bg-gradient-to-r from-pink-400 to-purple-400 hover:from-pink-500 hover:to-purple-500 text-white rounded-2xl shadow-soft transition-all active:scale-[0.98] font-medium text-sm"
         >
-          {showDashboard ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          {showDashboard ? '통계 접기' : '통계 보기'}
+          <Camera size={18} />
+          📸 영수증 · 카드내역 이미지로 자동 추가
         </button>
-        {showDashboard && <Dashboard />}
+        <p className="text-center text-[11px] text-gray-400 mt-1.5">
+          이미지를 올리면 AI가 내역을 읽어서 자동으로 입력해줘요 ✨ · 아래 표에서 직접 타이핑도 가능해요
+        </p>
       </div>
 
       {/* ── 메인 컨텐츠 ── */}
-      <main className="flex gap-4 p-4 max-w-7xl mx-auto">
-        {/* 필터 사이드바 (데스크탑에서만 표시) */}
-        <div className="hidden lg:block">
+      <main className="flex gap-3 px-3 pb-6 flex-1">
+        {/* 필터 사이드바 */}
+        <div className={`${showFilter ? 'block' : 'hidden'} lg:block shrink-0`}>
           <FilterBar />
         </div>
 
-        {/* 지출 목록 */}
-        <div className="flex-1 min-w-0 space-y-3">
-          {/* 새 지출 추가 폼 (토글) */}
-          {showAddForm ? (
-            <div className="fade-in">
-              <AddExpenseRow onClose={() => setShowAddForm(false)} />
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-pink-200 rounded-2xl text-sm text-pink-400 hover:border-pink-400 hover:text-pink-600 hover:bg-pink-50/50 transition-all"
-            >
-              <PlusCircle size={18} />
-              새 지출 추가하기
-            </button>
-          )}
-
-          {/* 지출 테이블 */}
-          <div className="bg-white rounded-2xl shadow-soft overflow-hidden">
-            <ExpenseTable />
-          </div>
+        {/* 테이블 영역 */}
+        <div className="flex-1 min-w-0 bg-white rounded-2xl shadow-soft overflow-hidden">
+          <ExpenseTable />
         </div>
       </main>
-
-      {/* ── 모바일 필터 버튼 (하단 고정) ── */}
-      <div className="lg:hidden fixed bottom-4 left-4 right-4 flex gap-2 z-30">
-        {/* 모바일에서는 필터를 간략화 - 나중에 추가 가능 */}
-      </div>
 
       {/* ── 영수증 업로드 모달 ── */}
       {showReceipt && <ReceiptUploader onClose={() => setShowReceipt(false)} />}
@@ -140,34 +133,22 @@ export default function HomePage() {
       {/* ── 환영 모달 ── */}
       {showWelcome && (
         <div className="fixed inset-0 bg-black/40 modal-overlay z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-card w-full max-w-md p-6 fade-in">
+          <div className="bg-white rounded-3xl shadow-card w-full max-w-sm p-6 fade-in">
             <div className="text-center mb-5">
               <div className="text-5xl mb-3">🌷</div>
-              <h2 className="text-xl font-bold text-pink-700 mb-2">어서오세요!</h2>
-              <p className="text-gray-500 text-sm">
-                가계부를 시작해볼까요? 💕<br />
-                먼저 설정에서 지출한 사람을 등록해두면<br />
-                더 편리하게 사용할 수 있어요!
-              </p>
+              <h2 className="text-xl font-bold text-pink-700 mb-1">어서오세요!</h2>
+              <p className="text-sm text-gray-500">아맹이 가계뿌를 시작해볼까요? 💕</p>
             </div>
 
-            {/* 사용 안내 */}
-            <div className="bg-pastel-cream rounded-2xl p-4 text-sm space-y-2 mb-5">
-              <p className="font-medium text-yellow-700">💡 시작 가이드</p>
-              <ol className="text-xs text-gray-600 space-y-1.5">
-                <li>1️⃣ <strong>설정</strong> → <strong>사람 관리</strong>에서 이름 추가</li>
-                <li>2️⃣ <strong>+ 새 지출 추가</strong>로 지출 기록</li>
-                <li>3️⃣ 📸 <strong>영수증 업로드</strong>로 자동 입력</li>
-                <li>4️⃣ 📤 <strong>엑셀 내보내기</strong>로 주기적 백업 (주 1회 권장)</li>
+            <div className="bg-amber-50 rounded-2xl p-4 text-xs space-y-2 mb-5">
+              <p className="font-semibold text-amber-700">💡 이렇게 써요!</p>
+              <ol className="text-gray-600 space-y-1.5">
+                <li>1️⃣ <strong>설정</strong> → <strong>사람 관리</strong>에서 이름 먼저 추가</li>
+                <li>2️⃣ 📸 <strong>영수증 이미지 업로드</strong> → AI 자동 입력</li>
+                <li>3️⃣ 표 맨 아래 노란 행에 직접 타이핑도 가능</li>
+                <li>4️⃣ 📤 <strong>엑셀 내보내기</strong>로 주 1회 백업 권장</li>
               </ol>
             </div>
-
-            {/* 기존 엑셀 파일이 있는 경우 */}
-            {expenses.length === 0 && (
-              <div className="text-xs text-center text-gray-400 mb-4">
-                기존 엑셀 파일이 있다면 상단의 <strong>📥 엑셀 불러오기</strong>를 이용하세요
-              </div>
-            )}
 
             <div className="flex gap-2">
               <Link
@@ -175,13 +156,13 @@ export default function HomePage() {
                 onClick={closeWelcome}
                 className="flex-1 px-4 py-2.5 text-sm text-center border border-pink-200 text-pink-600 rounded-2xl hover:bg-pink-50 transition-colors"
               >
-                ⚙️ 설정 바로가기
+                ⚙️ 설정 먼저
               </Link>
               <button
                 onClick={closeWelcome}
-                className="flex-1 px-4 py-2.5 text-sm bg-pink-400 hover:bg-pink-500 text-white rounded-2xl transition-colors font-medium"
+                className="flex-1 px-4 py-2.5 text-sm bg-pink-400 hover:bg-pink-500 text-white rounded-2xl font-medium transition-colors"
               >
-                시작하기 🌸
+                시작! 🌸
               </button>
             </div>
           </div>

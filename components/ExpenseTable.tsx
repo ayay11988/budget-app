@@ -1,6 +1,9 @@
 // ===================================================
-// 메인 지출 목록 테이블
-// 인라인 편집, 행 hover 삭제, AI 신뢰도 경고 표시
+// 엑셀 스타일 지출 표
+// - 가로: 컬럼(사용목적·날짜·사람·내역·구매처·금액·종류·지불방법·기타)
+// - 세로: 날짜별 행
+// - 최하단에 인라인 입력 행 (엑셀처럼 직접 타이핑)
+// - 클릭 한 번으로 셀 편집
 // ===================================================
 
 'use client';
@@ -9,321 +12,449 @@ import { useState } from 'react';
 import { useBudgetStore, getMonthExpenses, applyFilter } from '@/lib/store';
 import {
   formatAmount, formatAmountInput, parseAmount,
-  getPurposeColorClass, getPurposeEmoji, getPaymentEmoji,
+  getPurposeEmoji, getPaymentEmoji, getTodayFormatted, getCurrentYearMonth,
 } from '@/lib/utils';
 import { Expense, Purpose, PaymentMethod } from '@/lib/types';
-import { Pencil, Trash2, Check, X } from 'lucide-react';
+import { Trash2, Check, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PURPOSES: Purpose[] = ['생활용', '사업용', '개인용'];
 const METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
 
-interface EditState {
-  field: string;
-  value: string;
+// 사용목적별 행 배경색
+function rowBg(purpose: Purpose) {
+  switch (purpose) {
+    case '생활용': return 'bg-pink-50 hover:bg-pink-100/70';
+    case '사업용': return 'bg-sky-50 hover:bg-sky-100/70';
+    case '개인용': return 'bg-emerald-50 hover:bg-emerald-100/70';
+  }
+}
+// 사용목적 뱃지 색상
+function purposeBadge(purpose: Purpose) {
+  switch (purpose) {
+    case '생활용': return 'bg-pink-100 text-pink-700';
+    case '사업용': return 'bg-sky-100 text-sky-700';
+    case '개인용': return 'bg-emerald-100 text-emerald-700';
+  }
 }
 
+// ── 빈 입력 폼 초기값 ───────────────────────────────
+const EMPTY_FORM = () => {
+  const today = getTodayFormatted();
+  const m = today.match(/(\d+)월\s*(\d+)일/);
+  const { year, month } = getCurrentYearMonth();
+  return {
+    purpose: '생활용' as Purpose,
+    date: today,
+    year,
+    month: m ? parseInt(m[1], 10) : month,
+    day: m ? parseInt(m[2], 10) : 1,
+    person: '',
+    item: '',
+    place: '',
+    amount: '',
+    category: '',
+    paymentMethod: '체크카드' as PaymentMethod,
+    memo: '',
+  };
+};
+
 export default function ExpenseTable() {
-  const { expenses, categories, persons, selectedYear, selectedMonth, filter, updateExpense, deleteExpense } = useBudgetStore();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editState, setEditState] = useState<EditState>({ field: '', value: '' });
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const {
+    expenses, categories, persons,
+    selectedYear, selectedMonth, filter,
+    addExpense, updateExpense, deleteExpense,
+  } = useBudgetStore();
 
-  // 현재 월 지출 + 필터 적용
+  // 현재 월 + 필터 적용
   const monthExpenses = getMonthExpenses(expenses, selectedYear, selectedMonth);
-  const filtered = applyFilter(monthExpenses, filter);
+  const rows = applyFilter(monthExpenses, filter);
 
-  // 인라인 편집 시작
+  // 인라인 편집 상태
+  const [editCell, setEditCell] = useState<{ id: string; field: string } | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // 하단 추가 행 상태
+  const [newRow, setNewRow] = useState(EMPTY_FORM());
+
+  // 필터가 걸려 있는지 여부
+  const isFiltered = Object.values(filter).some((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
+  );
+
+  // ── 셀 클릭 → 편집 시작 ─────────────────────────
   function startEdit(expense: Expense, field: string) {
-    setEditingId(expense.id);
-    let value: string;
+    let v = '';
     switch (field) {
-      case 'amount': value = expense.amount.toLocaleString('ko-KR'); break;
-      default: value = String((expense as unknown as Record<string, unknown>)[field] ?? '');
+      case 'amount': v = expense.amount.toLocaleString('ko-KR'); break;
+      default: v = String((expense as unknown as Record<string, unknown>)[field] ?? '');
     }
-    setEditState({ field, value });
+    setEditCell({ id: expense.id, field });
+    setEditValue(v);
   }
 
-  // 인라인 편집 저장
+  // ── 편집 저장 ────────────────────────────────────
   function saveEdit(expense: Expense) {
-    const { field, value } = editState;
+    if (!editCell) return;
+    const { field } = editCell;
     let updates: Partial<Expense> = {};
-
     switch (field) {
       case 'amount':
-        updates = { amount: parseAmount(value) };
-        break;
+        updates = { amount: parseAmount(editValue) }; break;
       case 'date': {
-        const match = value.match(/(\d{1,2})월\s*(\d{1,2})일/);
-        if (match) {
-          updates = {
-            date: value,
-            month: parseInt(match[1], 10),
-            day: parseInt(match[2], 10),
-          };
-        } else {
-          updates = { date: value };
-        }
+        const m = editValue.match(/(\d{1,2})월\s*(\d{1,2})일/);
+        updates = m
+          ? { date: editValue, month: parseInt(m[1], 10), day: parseInt(m[2], 10) }
+          : { date: editValue };
         break;
       }
-      default:
-        updates = { [field]: value } as Partial<Expense>;
+      default: updates = { [field]: editValue } as Partial<Expense>;
     }
-
     updateExpense(expense.id, updates);
-    setEditingId(null);
-    toast.success('수정됐어요 💕');
+    setEditCell(null);
+    toast.success('수정됐어요 💕', { duration: 1200 });
   }
 
-  // 삭제 확인
-  function confirmDelete(id: string) {
-    deleteExpense(id);
-    setDeleteConfirmId(null);
-    toast.success('삭제됐어요 🥺');
+  // ── 새 행 추가 ──────────────────────────────────
+  function handleAddRow() {
+    if (!newRow.item && !newRow.amount) {
+      toast.error('내역 또는 금액을 입력해주세요 🌷');
+      return;
+    }
+    addExpense({
+      purpose: newRow.purpose,
+      date: newRow.date,
+      year: newRow.year,
+      month: newRow.month,
+      day: newRow.day,
+      person: newRow.person || (persons.length === 1 ? persons[0].name : ''),
+      item: newRow.item,
+      place: newRow.place,
+      amount: parseAmount(newRow.amount),
+      category: newRow.category,
+      paymentMethod: newRow.paymentMethod,
+      memo: newRow.memo,
+    });
+    toast.success('추가됐어요 🌸', { duration: 1200 });
+    setNewRow(EMPTY_FORM());
   }
 
-  // 편집 중인 셀 렌더링
-  function renderEditCell(expense: Expense, field: string) {
-    const isEditing = editingId === expense.id && editState.field === field;
+  // 날짜 파싱 헬퍼
+  function parseDateInput(value: string) {
+    const m = value.match(/(\d{1,2})월\s*(\d{1,2})일/);
+    return m
+      ? { month: parseInt(m[1], 10), day: parseInt(m[2], 10) }
+      : { month: newRow.month, day: newRow.day };
+  }
+
+  // 현재 사용목적에 맞는 카테고리
+  const editingExpense = rows.find((r) => r.id === editCell?.id);
+  const filteredCats = (purpose: Purpose) =>
+    categories.filter((c) => c.purpose === purpose);
+
+  // ── 셀 렌더: 보기 vs 편집 ────────────────────────
+  function Cell({
+    expense, field, className = '',
+  }: { expense: Expense; field: string; className?: string }) {
+    const isEditing = editCell?.id === expense.id && editCell.field === field;
 
     if (!isEditing) {
+      let display: React.ReactNode;
+      switch (field) {
+        case 'purpose':
+          display = (
+            <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium whitespace-nowrap ${purposeBadge(expense.purpose)}`}>
+              {getPurposeEmoji(expense.purpose)} {expense.purpose}
+            </span>
+          );
+          break;
+        case 'amount':
+          display = (
+            <span className={`font-medium tabular-nums ${expense.amount >= 100000 ? 'text-rose-600' : ''}`}>
+              {formatAmount(expense.amount)}
+            </span>
+          );
+          break;
+        case 'paymentMethod':
+          display = <span>{getPaymentEmoji(expense.paymentMethod)} {expense.paymentMethod}</span>;
+          break;
+        case 'category':
+          display = (
+            <span>
+              {expense.category || <span className="text-gray-300">-</span>}
+              {(expense.categoryConfidence ?? 1) < 0.7 && (
+                <span className="ml-1 tooltip-container text-yellow-400 cursor-help">
+                  ⚠️
+                  <span className="tooltip-text">{expense.categoryReason}</span>
+                </span>
+              )}
+            </span>
+          );
+          break;
+        default:
+          display = String((expense as unknown as Record<string, unknown>)[field] ?? '') || <span className="text-gray-200">-</span>;
+      }
       return (
-        <span
-          onDoubleClick={() => startEdit(expense, field)}
-          className="cursor-text w-full block"
-          title="더블클릭으로 편집"
+        <td
+          className={`border border-gray-200 px-2 py-1 text-xs cursor-pointer ${className}`}
+          onClick={() => startEdit(expense, field)}
         >
-          {renderCellValue(expense, field)}
-        </span>
+          {display}
+        </td>
       );
     }
 
-    // 드롭다운 편집
+    // 편집 중인 셀
+    const inputCls = 'w-full border-0 outline-none bg-white text-xs px-0 py-0 focus:ring-1 focus:ring-pink-300 rounded';
+
+    let input: React.ReactNode;
     if (field === 'purpose') {
-      return (
-        <select
-          autoFocus
-          value={editState.value}
-          onChange={(e) => setEditState({ field, value: e.target.value })}
+      input = (
+        <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)}
           onBlur={() => saveEdit(expense)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditingId(null); }}
-          className="w-full text-xs border border-pink-300 rounded px-1 py-0.5"
-        >
+          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }}
+          className={inputCls}>
           {PURPOSES.map((p) => <option key={p} value={p}>{getPurposeEmoji(p)} {p}</option>)}
         </select>
       );
-    }
-    if (field === 'paymentMethod') {
-      return (
-        <select
-          autoFocus
-          value={editState.value}
-          onChange={(e) => setEditState({ field, value: e.target.value })}
+    } else if (field === 'paymentMethod') {
+      input = (
+        <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)}
           onBlur={() => saveEdit(expense)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditingId(null); }}
-          className="w-full text-xs border border-pink-300 rounded px-1 py-0.5"
-        >
+          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }}
+          className={inputCls}>
           {METHODS.map((m) => <option key={m} value={m}>{getPaymentEmoji(m)} {m}</option>)}
         </select>
       );
-    }
-    if (field === 'category') {
-      const filteredCats = categories.filter((c) => c.purpose === expense.purpose);
-      return (
-        <select
-          autoFocus
-          value={editState.value}
-          onChange={(e) => setEditState({ field, value: e.target.value })}
+    } else if (field === 'category') {
+      input = (
+        <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)}
           onBlur={() => saveEdit(expense)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditingId(null); }}
-          className="w-full text-xs border border-pink-300 rounded px-1 py-0.5"
-        >
-          <option value="">선택...</option>
-          {filteredCats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }}
+          className={inputCls}>
+          <option value="">-</option>
+          {filteredCats(editingExpense?.purpose ?? '생활용').map((c) => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
         </select>
       );
-    }
-    if (field === 'person') {
-      return persons.length > 1 ? (
-        <select
-          autoFocus
-          value={editState.value}
-          onChange={(e) => setEditState({ field, value: e.target.value })}
+    } else if (field === 'person' && persons.length > 1) {
+      input = (
+        <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)}
           onBlur={() => saveEdit(expense)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditingId(null); }}
-          className="w-full text-xs border border-pink-300 rounded px-1 py-0.5"
-        >
+          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }}
+          className={inputCls}>
           {persons.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
         </select>
-      ) : (
-        <input
-          autoFocus
-          type="text"
-          value={editState.value}
-          onChange={(e) => setEditState({ field, value: e.target.value })}
+      );
+    } else {
+      input = (
+        <input autoFocus type="text" value={editValue}
+          onChange={(e) => setEditValue(field === 'amount' ? formatAmountInput(e.target.value) : e.target.value)}
           onBlur={() => saveEdit(expense)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditingId(null); }}
-          className="w-full text-xs border border-pink-300 rounded px-1 py-0.5"
+          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }}
+          className={`${inputCls} ${field === 'amount' ? 'text-right' : ''}`}
         />
       );
     }
 
-    // 일반 텍스트/숫자 입력
     return (
-      <input
-        autoFocus
-        type="text"
-        value={editState.value}
-        onChange={(e) => {
-          const v = field === 'amount' ? formatAmountInput(e.target.value) : e.target.value;
-          setEditState({ field, value: v });
-        }}
-        onBlur={() => saveEdit(expense)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') saveEdit(expense);
-          if (e.key === 'Escape') setEditingId(null);
-        }}
-        className={`w-full text-xs border border-pink-300 rounded px-1 py-0.5 ${field === 'amount' ? 'text-right' : ''}`}
-      />
-    );
-  }
-
-  // 셀 표시값 렌더링
-  function renderCellValue(expense: Expense, field: string): React.ReactNode {
-    switch (field) {
-      case 'purpose':
-        return (
-          <span className={`text-xs px-1.5 py-0.5 rounded-lg font-medium ${getPurposeColorClass(expense.purpose)}`}>
-            {getPurposeEmoji(expense.purpose)} {expense.purpose}
-          </span>
-        );
-      case 'amount':
-        return (
-          <span className={`amount-cell font-medium ${expense.amount >= 100000 ? 'amount-large' : 'text-gray-700'}`}>
-            {formatAmount(expense.amount)}
-          </span>
-        );
-      case 'paymentMethod':
-        return `${getPaymentEmoji(expense.paymentMethod)} ${expense.paymentMethod}`;
-      case 'category':
-        return (
-          <span className="tooltip-container">
-            {expense.category || <span className="text-gray-300">-</span>}
-            {expense.categoryConfidence !== undefined && expense.categoryConfidence < 0.7 && (
-              <> <span className="text-yellow-500">⚠️</span>
-                <span className="tooltip-text">{expense.categoryReason}</span>
-              </>
-            )}
-          </span>
-        );
-      default:
-        return String((expense as unknown as Record<string, unknown>)[field] ?? '') || <span className="text-gray-300">-</span>;
-    }
-  }
-
-  // 빈 상태
-  if (monthExpenses.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center fade-in">
-        <div className="text-6xl mb-4">🌷</div>
-        <p className="text-lg font-medium text-gray-500 mb-2">이번 달 지출이 없어요</p>
-        <p className="text-sm text-gray-400">첫 지출을 기록해보세요 💕</p>
-      </div>
+      <td className={`border border-pink-300 bg-white px-2 py-1 text-xs ${className}`}>
+        {input}
+      </td>
     );
   }
 
   return (
-    <div className="fade-in">
-      {/* 필터 적용 결과 안내 */}
-      {Object.values(filter).some((v) => Array.isArray(v) ? v.length > 0 : v !== '' && v !== null) && (
-        <div className="px-4 py-2 bg-yellow-50 border-b border-yellow-100 text-sm text-yellow-700 flex items-center gap-2">
-          <span>🔍 필터링된 결과:</span>
-          <span className="font-semibold">{formatAmount(filtered.reduce((s, e) => s + e.amount, 0))}</span>
-          <span className="text-yellow-500">({filtered.length}건)</span>
+    <div>
+      {/* 필터 결과 안내 */}
+      {isFiltered && (
+        <div className="px-3 py-1.5 bg-yellow-50 border-b border-yellow-100 text-xs text-yellow-700 flex gap-2">
+          <span>🔍 필터 결과:</span>
+          <span className="font-semibold">{formatAmount(rows.reduce((s, e) => s + e.amount, 0))}</span>
+          <span>({rows.length}건)</span>
         </div>
       )}
 
-      {/* 테이블 */}
       <div className="table-wrapper">
-        <table className="w-full text-sm min-w-[900px]">
-          <thead>
-            <tr className="bg-pink-50 border-b border-pink-100">
-              {['사용목적', '날짜', '지출한 사람', '내역', '구매처', '금액', '카테고리', '지출방법', '기타', ''].map((h) => (
-                <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-pink-600 whitespace-nowrap">
-                  {h}
-                </th>
-              ))}
+        <table className="w-full border-collapse text-xs min-w-[900px]">
+
+          {/* ── 헤더 ── */}
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-gray-100 text-gray-600">
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[90px]">사용목적</th>
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[80px]">날짜</th>
+              {persons.length !== 1 && (
+                <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[70px]">지출한 사람</th>
+              )}
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[160px]">내역</th>
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[100px]">구매처</th>
+              <th className="border border-gray-300 px-2 py-2 text-right font-semibold w-[90px]">금액</th>
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[90px]">종류</th>
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[90px]">지불방법</th>
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold">기타</th>
+              <th className="border border-gray-300 w-[36px]"></th>
             </tr>
           </thead>
-          <tbody>
-            {filtered.map((expense, idx) => (
-              <tr
-                key={expense.id}
-                className={`expense-row border-b border-pink-50 transition-colors hover:bg-pink-50/60 ${idx % 2 === 0 ? '' : 'bg-white/50'}`}
-              >
-                {/* 사용목적 */}
-                <td className="px-3 py-2 editable-cell">{renderEditCell(expense, 'purpose')}</td>
-                {/* 날짜 */}
-                <td className="px-3 py-2 editable-cell whitespace-nowrap">{renderEditCell(expense, 'date')}</td>
-                {/* 지출한 사람 */}
-                <td className="px-3 py-2 editable-cell">{renderEditCell(expense, 'person')}</td>
-                {/* 내역 */}
-                <td className="px-3 py-2 editable-cell max-w-[160px]">{renderEditCell(expense, 'item')}</td>
-                {/* 구매처 */}
-                <td className="px-3 py-2 editable-cell max-w-[120px]">{renderEditCell(expense, 'place')}</td>
-                {/* 금액 */}
-                <td className="px-3 py-2 editable-cell text-right">{renderEditCell(expense, 'amount')}</td>
-                {/* 카테고리 */}
-                <td className="px-3 py-2 editable-cell">{renderEditCell(expense, 'category')}</td>
-                {/* 지출방법 */}
-                <td className="px-3 py-2 editable-cell whitespace-nowrap">{renderEditCell(expense, 'paymentMethod')}</td>
-                {/* 기타 */}
-                <td className="px-3 py-2 editable-cell max-w-[140px] text-gray-500 text-xs">{renderEditCell(expense, 'memo')}</td>
 
-                {/* 수정/삭제 버튼 */}
-                <td className="px-2 py-2">
-                  <div className="row-actions flex items-center gap-1">
-                    {deleteConfirmId === expense.id ? (
-                      <>
-                        <button onClick={() => confirmDelete(expense.id)} className="p-1 text-red-500 hover:text-red-700">
-                          <Check size={14} />
-                        </button>
-                        <button onClick={() => setDeleteConfirmId(null)} className="p-1 text-gray-400 hover:text-gray-600">
-                          <X size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setDeleteConfirmId(expense.id)}
-                        className="p-1 text-gray-300 hover:text-red-400 transition-colors"
-                        title="삭제"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+          <tbody>
+            {/* ── 데이터 행 ── */}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={10} className="border border-gray-100 py-16 text-center text-gray-400">
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-4xl">🌷</span>
+                    <span>이번 달 지출이 없어요. 아래에서 직접 입력하거나 영수증을 올려주세요 💕</span>
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
+            )}
 
-          {/* 합계 행 */}
-          <tfoot>
-            <tr className="bg-pink-50 border-t-2 border-pink-200">
-              <td colSpan={5} className="px-3 py-2.5 text-xs font-semibold text-pink-600">
-                합계 ({filtered.length}건)
+            {rows.map((expense) => (
+              <tr key={expense.id} className={`group ${rowBg(expense.purpose)} transition-colors`}>
+                <Cell expense={expense} field="purpose" />
+                <Cell expense={expense} field="date" className="whitespace-nowrap" />
+                {persons.length !== 1 && <Cell expense={expense} field="person" />}
+                <Cell expense={expense} field="item" />
+                <Cell expense={expense} field="place" />
+                <Cell expense={expense} field="amount" className="text-right" />
+                <Cell expense={expense} field="category" />
+                <Cell expense={expense} field="paymentMethod" className="whitespace-nowrap" />
+                <Cell expense={expense} field="memo" className="text-gray-500" />
+
+                {/* 삭제 버튼 */}
+                <td className="border border-gray-200 px-1 text-center">
+                  {deleteId === expense.id ? (
+                    <div className="flex gap-0.5 justify-center">
+                      <button onClick={() => { deleteExpense(expense.id); setDeleteId(null); toast.success('삭제됐어요 🥺', { duration: 1200 }); }} className="text-red-500 hover:text-red-700 p-0.5"><Check size={12} /></button>
+                      <button onClick={() => setDeleteId(null)} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={12} /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setDeleteId(expense.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all p-0.5">
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+
+            {/* ── 인라인 입력 행 (엑셀 최하단 빈 행) ── */}
+            <tr className="bg-amber-50/60 border-t-2 border-dashed border-amber-200">
+              {/* 사용목적 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <select value={newRow.purpose}
+                  onChange={(e) => setNewRow((f) => ({ ...f, purpose: e.target.value as Purpose, category: '' }))}
+                  className="w-full text-[11px] bg-transparent outline-none cursor-pointer">
+                  {PURPOSES.map((p) => <option key={p} value={p}>{getPurposeEmoji(p)} {p}</option>)}
+                </select>
               </td>
-              <td className="px-3 py-2.5 text-right font-bold text-pink-700">
-                {formatAmount(filtered.reduce((s, e) => s + e.amount, 0))}
+              {/* 날짜 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <input type="text" value={newRow.date}
+                  onChange={(e) => {
+                    const { month, day } = parseDateInput(e.target.value);
+                    setNewRow((f) => ({ ...f, date: e.target.value, month, day }));
+                  }}
+                  placeholder="05월 15일"
+                  className="w-full text-[11px] bg-transparent outline-none" />
               </td>
-              <td colSpan={4} />
+              {/* 지출한 사람 (1명이면 숨김) */}
+              {persons.length !== 1 && (
+                <td className="border border-amber-200 px-1 py-1">
+                  {persons.length === 0 ? (
+                    <input type="text" value={newRow.person}
+                      onChange={(e) => setNewRow((f) => ({ ...f, person: e.target.value }))}
+                      placeholder="이름"
+                      className="w-full text-[11px] bg-transparent outline-none" />
+                  ) : (
+                    <select value={newRow.person}
+                      onChange={(e) => setNewRow((f) => ({ ...f, person: e.target.value }))}
+                      className="w-full text-[11px] bg-transparent outline-none cursor-pointer">
+                      <option value="">선택</option>
+                      {persons.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+                    </select>
+                  )}
+                </td>
+              )}
+              {/* 내역 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <input type="text" value={newRow.item}
+                  onChange={(e) => setNewRow((f) => ({ ...f, item: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddRow(); }}
+                  placeholder="내역 입력..."
+                  className="w-full text-[11px] bg-transparent outline-none" />
+              </td>
+              {/* 구매처 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <input type="text" value={newRow.place}
+                  onChange={(e) => setNewRow((f) => ({ ...f, place: e.target.value }))}
+                  placeholder="구매처"
+                  className="w-full text-[11px] bg-transparent outline-none" />
+              </td>
+              {/* 금액 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <input type="text" value={newRow.amount}
+                  onChange={(e) => setNewRow((f) => ({ ...f, amount: formatAmountInput(e.target.value) }))}
+                  placeholder="0"
+                  className="w-full text-[11px] bg-transparent outline-none text-right" />
+              </td>
+              {/* 종류 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <select value={newRow.category}
+                  onChange={(e) => setNewRow((f) => ({ ...f, category: e.target.value }))}
+                  className="w-full text-[11px] bg-transparent outline-none cursor-pointer">
+                  <option value="">-</option>
+                  {filteredCats(newRow.purpose).map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </td>
+              {/* 지불방법 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <select value={newRow.paymentMethod}
+                  onChange={(e) => setNewRow((f) => ({ ...f, paymentMethod: e.target.value as PaymentMethod }))}
+                  className="w-full text-[11px] bg-transparent outline-none cursor-pointer">
+                  {METHODS.map((m) => <option key={m} value={m}>{getPaymentEmoji(m)} {m}</option>)}
+                </select>
+              </td>
+              {/* 기타 */}
+              <td className="border border-amber-200 px-1 py-1">
+                <input type="text" value={newRow.memo}
+                  onChange={(e) => setNewRow((f) => ({ ...f, memo: e.target.value }))}
+                  placeholder="메모"
+                  className="w-full text-[11px] bg-transparent outline-none" />
+              </td>
+              {/* 추가 버튼 */}
+              <td className="border border-amber-200 px-1 text-center">
+                <button onClick={handleAddRow}
+                  className="p-1 text-amber-500 hover:text-amber-700 hover:bg-amber-100 rounded transition-colors"
+                  title="추가 (Enter)">
+                  <Plus size={14} />
+                </button>
+              </td>
             </tr>
-          </tfoot>
+
+            {/* ── 합계 행 ── */}
+            {rows.length > 0 && (
+              <tr className="bg-gray-50 font-semibold">
+                <td className="border border-gray-300 px-2 py-1.5 text-xs text-gray-500" colSpan={persons.length !== 1 ? 5 : 4}>
+                  합계 ({rows.length}건)
+                </td>
+                <td className="border border-gray-300 px-2 py-1.5 text-xs text-right text-pink-700 font-bold">
+                  {formatAmount(rows.reduce((s, e) => s + e.amount, 0))}
+                </td>
+                <td className="border border-gray-300" colSpan={4} />
+              </tr>
+            )}
+          </tbody>
         </table>
       </div>
 
-      {/* 더블클릭 안내 */}
-      <p className="text-xs text-gray-300 px-4 py-2">💡 셀을 더블클릭하면 바로 수정할 수 있어요</p>
+      {/* 안내 */}
+      <p className="text-[11px] text-gray-300 px-3 py-1.5">
+        💡 셀 클릭으로 수정 · 아래 노란 행에서 직접 입력 · 📸 영수증 버튼으로 AI 자동 입력
+      </p>
     </div>
   );
 }
