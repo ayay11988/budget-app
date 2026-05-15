@@ -1,0 +1,149 @@
+/* Noto Sans KR 폰트 불러오기 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 기본 스타일 ── */
+:root {
+  --pastel-pink: #FFE4EC;
+  --pastel-mint: #D4F4E6;
+  --pastel-cream: #FFF8E7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background-color: #FFF8F9;
+  color: #333;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 스크롤바 스타일 (귀엽게) ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFB3CB;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF8FAD;
+}
+
+/* ── 테이블 인라인 편집 ── */
+.editable-cell input,
+.editable-cell select {
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid #FFB3CB;
+  border-radius: 4px;
+  background: white;
+  font-size: 13px;
+  font-family: 'Noto Sans KR', sans-serif;
+  outline: none;
+}
+
+.editable-cell input:focus,
+.editable-cell select:focus {
+  border-color: #FF8FAD;
+  box-shadow: 0 0 0 2px rgba(255, 143, 173, 0.2);
+}
+
+/* ── 금액 셀 (우측 정렬) ── */
+.amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 큰 금액 강조 (10만원 이상) ── */
+.amount-large {
+  color: #C2185B;
+  font-weight: 600;
+}
+
+/* ── 애니메이션 ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── 월별 탭 가로 스크롤 ── */
+.month-tabs-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #FFB3CB transparent;
+}
+
+/* ── 행 hover 시 액션 버튼 페이드인 ── */
+.expense-row .row-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.expense-row:hover .row-actions {
+  opacity: 1;
+}
+
+/* ── 모달 오버레이 ── */
+.modal-overlay {
+  backdrop-filter: blur(2px);
+}
+
+/* ── 드롭존 ── */
+.dropzone-active {
+  border-color: #FF8FAD !important;
+  background-color: #FFE4EC !important;
+}
+
+/* ── 툴팁 ── */
+.tooltip-container {
+  position: relative;
+}
+.tooltip-container .tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+}
+.tooltip-container:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ── 반응형: 모바일에서 테이블 가로 스크롤 ── */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
