@@ -9,52 +9,45 @@ import { getPurposeBgColor, generateId } from './utils';
 const HEADERS = ['사용목적', '날짜', '지출한사람', '내역', '구매처', '금액', '카테고리', '지출방법', '기타'];
 
 // ── 날짜 파싱 ─────────────────────────────────────────────────────────────────
+function makeDate(m: number, d: number) {
+  return { dateStr: `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`, month: m, day: d };
+}
+
 function parseExcelDate(value: unknown): { dateStr: string; month: number; day: number } | null {
   if (value === null || value === undefined || value === '') return null;
 
   // ① JS Date 객체 (cellDates:true 옵션 시)
   if (value instanceof Date && !isNaN(value.getTime())) {
-    const m = value.getUTCMonth() + 1; // UTC 기준 (timezone 오차 방지)
+    const m = value.getUTCMonth() + 1;
     const d = value.getUTCDate();
-    return { dateStr: `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`, month: m, day: d };
+    return makeDate(m, d);
   }
 
-  // ② 엑셀 날짜 일련번호 (숫자, 대략 2000년~2040년 범위)
+  // ② 엑셀 날짜 일련번호 → XLSX.SSF.parse_date_code() 사용 (가장 정확)
   if (typeof value === 'number' && value > 36526 && value < 73050) {
-    // 엑셀 epoch → Unix epoch: 엑셀은 1900-01-00 기준, Unix는 1970-01-01 기준
-    // 25569 = days(1900-01-01 to 1970-01-01) + 엑셀 1900 윤년 버그 보정
-    const ms = Math.round((value - 25569) * 86400 * 1000);
-    const date = new Date(ms);
-    const m = date.getUTCMonth() + 1;
-    const d = date.getUTCDate();
-    return { dateStr: `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`, month: m, day: d };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = (XLSX.SSF as any).parse_date_code(value);
+      if (parsed && parsed.m && parsed.d) return makeDate(parsed.m, parsed.d);
+    } catch {
+      // fallback 없음 — 아래 문자열 경로로는 오지 않으므로 null 반환
+    }
+    return null;
   }
 
   const str = String(value).trim();
 
   // ③ "MM월 DD일" 또는 "M월 D일"
   const koMatch = str.match(/(\d{1,2})월\s*(\d{1,2})일/);
-  if (koMatch) {
-    const m = parseInt(koMatch[1], 10);
-    const d = parseInt(koMatch[2], 10);
-    return { dateStr: `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`, month: m, day: d };
-  }
+  if (koMatch) return makeDate(parseInt(koMatch[1], 10), parseInt(koMatch[2], 10));
 
   // ④ "YYYY-MM-DD"
   const isoMatch = str.match(/\d{4}-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) {
-    const m = parseInt(isoMatch[1], 10);
-    const d = parseInt(isoMatch[2], 10);
-    return { dateStr: `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`, month: m, day: d };
-  }
+  if (isoMatch) return makeDate(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10));
 
   // ⑤ "MM/DD" 또는 "M/D"
   const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})$/);
-  if (slashMatch) {
-    const m = parseInt(slashMatch[1], 10);
-    const d = parseInt(slashMatch[2], 10);
-    return { dateStr: `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`, month: m, day: d };
-  }
+  if (slashMatch) return makeDate(parseInt(slashMatch[1], 10), parseInt(slashMatch[2], 10));
 
   return null;
 }
@@ -159,9 +152,8 @@ export interface ImportResult {
 }
 
 export function importFromExcel(file: ArrayBuffer): ImportResult {
-  // cellDates:true → 날짜 셀을 JS Date 객체로 변환
-  // raw:true       → 숫자 셀을 있는 그대로 (문자열 변환 없이)
-  const wb = XLSX.read(file, { type: 'array', cellDates: true, raw: true });
+  // cellDates:true → 날짜 셀을 JS Date 객체로 변환 (raw:true와 함께 쓰면 충돌하므로 제거)
+  const wb = XLSX.read(file, { type: 'array', cellDates: true });
   const warnings: string[] = [];
 
   // ── 카테고리 시트 ──────────────────────────────
@@ -202,7 +194,8 @@ export function importFromExcel(file: ArrayBuffer): ImportResult {
     const sheet = wb.Sheets[sheetName];
     if (!sheet) continue;
 
-    // raw:true로 읽어서 날짜/숫자를 원시값으로 받음
+    // raw:true → 숫자 셀을 문자열로 변환하지 않고 그대로 받음 (금액 파싱용)
+    // 날짜 셀은 XLSX.read()의 cellDates:true 덕분에 이미 JS Date 객체로 변환됨
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
       defval: '',
       raw: true,
