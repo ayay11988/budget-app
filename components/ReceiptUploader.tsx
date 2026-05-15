@@ -4,14 +4,13 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useBudgetStore } from '@/lib/store';
-import { extractReceipt } from '@/lib/claude';
-import { categorizeBatch } from '@/lib/claude';
+import { extractReceipt, categorizeBatch } from '@/lib/claude';
 import { ReceiptItem, PaymentMethod, Purpose } from '@/lib/types';
 import { formatAmount, parseAmount, formatAmountInput, getCurrentYearMonth, getPurposeEmoji } from '@/lib/utils';
-import { X, Upload, Loader2, CheckCircle } from 'lucide-react';
+import { X, Upload, Loader2, CheckCircle, Clipboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -68,6 +67,28 @@ export default function ReceiptUploader({ onClose }: Props) {
     accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp'] },
     multiple: true,
   });
+
+  // ── Ctrl+V 붙여넣기로 클립보드 이미지 처리 ──────────
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imageItems = items.filter((item) => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+
+      e.preventDefault();
+      const files = imageItems
+        .map((item) => item.getAsFile())
+        .filter((f): f is File => f !== null);
+
+      if (files.length > 0) {
+        toast('클립보드 이미지를 인식했어요 📋', { duration: 1500 });
+        onDrop(files);
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [onDrop]);
 
   // 미리보기 항목 수정
   function updateItem(idx: number, updates: Partial<typeof items[0]>) {
@@ -154,8 +175,15 @@ export default function ReceiptUploader({ onClose }: Props) {
             ) : (
               <div className="flex flex-col items-center gap-2 text-gray-400">
                 <Upload size={32} />
-                <p className="text-sm">영수증 이미지를 드래그하거나 클릭해서 업로드</p>
-                <p className="text-xs">(JPG, PNG, GIF, WEBP 지원 · 여러 장 동시 업로드 가능)</p>
+                <p className="text-sm font-medium">영수증 이미지를 드래그하거나 클릭해서 업로드</p>
+                <div className="flex items-center gap-3 text-xs mt-1">
+                  <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-gray-500">
+                    <Clipboard size={12} />
+                    <kbd className="font-mono font-semibold">Ctrl</kbd>+<kbd className="font-mono font-semibold">V</kbd>
+                    로 붙여넣기도 가능해요!
+                  </span>
+                </div>
+                <p className="text-xs text-gray-300">JPG · PNG · GIF · WEBP · 여러 장 동시 가능</p>
               </div>
             )}
           </div>

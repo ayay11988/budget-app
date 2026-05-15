@@ -21,12 +21,12 @@ import toast from 'react-hot-toast';
 const PURPOSES: Purpose[] = ['생활용', '사업용', '개인용'];
 const METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
 
-// 사용목적별 행 배경색
-function rowBg(purpose: Purpose) {
+// 사용목적 × 홀짝 행 배경색 (짝수 행이 살짝 더 진함)
+function rowBg(purpose: Purpose, isEven: boolean) {
   switch (purpose) {
-    case '생활용': return 'bg-pink-50 hover:bg-pink-100/70';
-    case '사업용': return 'bg-sky-50 hover:bg-sky-100/70';
-    case '개인용': return 'bg-emerald-50 hover:bg-emerald-100/70';
+    case '생활용': return isEven ? 'bg-pink-100/80 hover:bg-pink-200/60' : 'bg-pink-50/60 hover:bg-pink-100/50';
+    case '사업용': return isEven ? 'bg-sky-100/80 hover:bg-sky-200/60'  : 'bg-sky-50/60 hover:bg-sky-100/50';
+    case '개인용': return isEven ? 'bg-emerald-100/80 hover:bg-emerald-200/60' : 'bg-emerald-50/60 hover:bg-emerald-100/50';
   }
 }
 // 사용목적 뱃지 색상
@@ -311,8 +311,8 @@ export default function ExpenseTable() {
               </tr>
             )}
 
-            {rows.map((expense) => (
-              <tr key={expense.id} className={`group ${rowBg(expense.purpose)} transition-colors`}>
+            {rows.map((expense, idx) => (
+              <tr key={expense.id} className={`group ${rowBg(expense.purpose, idx % 2 === 0)} transition-colors`}>
                 <Cell expense={expense} field="purpose" />
                 <Cell expense={expense} field="date" className="whitespace-nowrap" />
                 {persons.length !== 1 && <Cell expense={expense} field="person" />}
