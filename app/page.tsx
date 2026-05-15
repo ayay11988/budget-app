@@ -55,7 +55,7 @@ export default function HomePage() {
       <header className="bg-white border-b border-pink-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-soft">
         <div className="flex items-center gap-2">
           <span className="text-xl">🌸</span>
-          <h1 className="text-base font-bold text-pink-700">가계부</h1>
+          <h1 className="text-base font-bold text-pink-700">아맹이 가계뿌</h1>
         </div>
 
         <div className="flex items-center gap-2">

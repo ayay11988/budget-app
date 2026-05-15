@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '🌸 수학강사 가계부',
+  title: '🌸 아맹이 가계뿌',
   description: '사업용·생활용·개인용 지출을 한눈에 관리하는 스마트 가계부',
 };
 
