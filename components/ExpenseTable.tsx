@@ -2,6 +2,7 @@
 // 엑셀 스타일 지출 표
 // - 가로: 컬럼(사용목적·날짜·사람·내역·구매처·금액·종류·지불방법·기타)
 // - 세로: 날짜별 행
+// - 체크박스로 여러 행 선택 후 일괄 삭제 가능
 // - 최하단에 인라인 입력 행 (엑셀처럼 직접 타이핑)
 // - 클릭 한 번으로 셀 편집
 // ===================================================
@@ -63,7 +64,7 @@ export default function ExpenseTable() {
   const {
     expenses, categories, persons,
     selectedYear, selectedMonth, filter,
-    addExpense, updateExpense, deleteExpense,
+    addExpense, updateExpense, deleteExpense, deleteExpenses,
   } = useBudgetStore();
 
   // 현재 월 + 필터 적용
@@ -75,6 +76,10 @@ export default function ExpenseTable() {
   const [editValue, setEditValue] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // ── 체크박스 선택 상태 ────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+
   // 하단 추가 행 상태
   const [newRow, setNewRow] = useState(EMPTY_FORM());
 
@@ -82,6 +87,40 @@ export default function ExpenseTable() {
   const isFiltered = Object.values(filter).some((v) =>
     Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
   );
+
+  // ── 체크박스 헬퍼 ────────────────────────────────
+  const allChecked = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+  const someChecked = rows.some((r) => selectedIds.has(r.id));
+
+  function toggleAll() {
+    if (allChecked) {
+      // 전체 해제
+      setSelectedIds(new Set());
+    } else {
+      // 전체 선택 (현재 보이는 행만)
+      setSelectedIds(new Set(rows.map((r) => r.id)));
+    }
+    setShowBulkConfirm(false);
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setShowBulkConfirm(false);
+  }
+
+  // 일괄 삭제 실행
+  function handleBulkDelete() {
+    const ids = Array.from(selectedIds);
+    deleteExpenses(ids);
+    setSelectedIds(new Set());
+    setShowBulkConfirm(false);
+    toast.success(`${ids.length}개 삭제됐어요 🗑️`, { duration: 1500 });
+  }
 
   // ── 셀 클릭 → 편집 시작 ─────────────────────────
   function startEdit(expense: Expense, field: string) {
@@ -152,6 +191,9 @@ export default function ExpenseTable() {
   const editingExpense = rows.find((r) => r.id === editCell?.id);
   const filteredCats = (purpose: Purpose) =>
     categories.filter((c) => c.purpose === purpose);
+
+  // 헤더 총 컬럼 수 (체크박스 + 사용목적 + 날짜 + (사람) + 내역 + 구매처 + 금액 + 종류 + 지불방법 + 기타 + 삭제)
+  const colSpanTotal = persons.length !== 1 ? 11 : 10;
 
   // ── 셀 렌더: 보기 vs 편집 ────────────────────────
   function Cell({
@@ -268,6 +310,47 @@ export default function ExpenseTable() {
 
   return (
     <div>
+      {/* ── 일괄 삭제 툴바 (선택 항목이 있을 때만 표시) ── */}
+      {someChecked && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-red-50 border-b border-red-200">
+          <span className="text-sm font-medium text-red-700">
+            {selectedIds.size}개 선택됨
+          </span>
+          <span className="text-gray-300">|</span>
+          {!showBulkConfirm ? (
+            <button
+              onClick={() => setShowBulkConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors"
+            >
+              <Trash2 size={13} />
+              선택 삭제
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600 font-medium">정말 삭제할까요?</span>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-1 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                <Check size={12} /> 삭제
+              </button>
+              <button
+                onClick={() => setShowBulkConfirm(false)}
+                className="flex items-center gap-1 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-600 text-xs font-medium rounded-lg transition-colors"
+              >
+                <X size={12} /> 취소
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => { setSelectedIds(new Set()); setShowBulkConfirm(false); }}
+            className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            선택 해제
+          </button>
+        </div>
+      )}
+
       {/* 필터 결과 안내 */}
       {isFiltered && (
         <div className="px-3 py-1.5 bg-yellow-50 border-b border-yellow-100 text-xs text-yellow-700 flex gap-2">
@@ -283,6 +366,22 @@ export default function ExpenseTable() {
           {/* ── 헤더 ── */}
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-100 text-gray-600">
+              {/* 전체 선택 체크박스 */}
+              <th className="border border-gray-300 px-2 py-2 w-[36px] text-center">
+                <div
+                  onClick={toggleAll}
+                  className={`w-4 h-4 rounded border-2 cursor-pointer mx-auto flex items-center justify-center transition-colors ${
+                    allChecked
+                      ? 'bg-red-400 border-red-400'
+                      : someChecked
+                        ? 'bg-red-200 border-red-400'
+                        : 'border-gray-400 hover:border-red-400 bg-white'
+                  }`}
+                >
+                  {allChecked && <Check size={10} className="text-white" strokeWidth={3} />}
+                  {!allChecked && someChecked && <span className="block w-2 h-0.5 bg-red-500 rounded" />}
+                </div>
+              </th>
               <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[90px]">사용목적</th>
               <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[80px]">날짜</th>
               {persons.length !== 1 && (
@@ -302,7 +401,7 @@ export default function ExpenseTable() {
             {/* ── 데이터 행 ── */}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="border border-gray-100 py-16 text-center text-gray-400">
+                <td colSpan={colSpanTotal} className="border border-gray-100 py-16 text-center text-gray-400">
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-4xl">🌷</span>
                     <span>이번 달 지출이 없어요. 아래에서 직접 입력하거나 영수증을 올려주세요 💕</span>
@@ -311,36 +410,62 @@ export default function ExpenseTable() {
               </tr>
             )}
 
-            {rows.map((expense, idx) => (
-              <tr key={expense.id} className={`group ${rowBg(expense.purpose, idx % 2 === 0)} transition-colors`}>
-                <Cell expense={expense} field="purpose" />
-                <Cell expense={expense} field="date" className="whitespace-nowrap" />
-                {persons.length !== 1 && <Cell expense={expense} field="person" />}
-                <Cell expense={expense} field="item" />
-                <Cell expense={expense} field="place" />
-                <Cell expense={expense} field="amount" className="text-right" />
-                <Cell expense={expense} field="category" />
-                <Cell expense={expense} field="paymentMethod" className="whitespace-nowrap" />
-                <Cell expense={expense} field="memo" className="text-gray-500" />
-
-                {/* 삭제 버튼 */}
-                <td className="border border-gray-200 px-1 text-center">
-                  {deleteId === expense.id ? (
-                    <div className="flex gap-0.5 justify-center">
-                      <button onClick={() => { deleteExpense(expense.id); setDeleteId(null); toast.success('삭제됐어요 🥺', { duration: 1200 }); }} className="text-red-500 hover:text-red-700 p-0.5"><Check size={12} /></button>
-                      <button onClick={() => setDeleteId(null)} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={12} /></button>
+            {rows.map((expense, idx) => {
+              const isChecked = selectedIds.has(expense.id);
+              return (
+                <tr
+                  key={expense.id}
+                  className={`group transition-colors ${
+                    isChecked
+                      ? 'bg-red-50 border-l-2 border-l-red-300'
+                      : rowBg(expense.purpose, idx % 2 === 0)
+                  }`}
+                >
+                  {/* 체크박스 셀 */}
+                  <td className="border border-gray-200 px-2 py-1 text-center">
+                    <div
+                      onClick={() => toggleRow(expense.id)}
+                      className={`w-4 h-4 rounded border-2 cursor-pointer mx-auto flex items-center justify-center transition-colors ${
+                        isChecked
+                          ? 'bg-red-400 border-red-400'
+                          : 'border-gray-300 hover:border-red-400 bg-white group-hover:border-gray-400'
+                      }`}
+                    >
+                      {isChecked && <Check size={10} className="text-white" strokeWidth={3} />}
                     </div>
-                  ) : (
-                    <button onClick={() => setDeleteId(expense.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all p-0.5">
-                      <Trash2 size={12} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  </td>
+
+                  <Cell expense={expense} field="purpose" />
+                  <Cell expense={expense} field="date" className="whitespace-nowrap" />
+                  {persons.length !== 1 && <Cell expense={expense} field="person" />}
+                  <Cell expense={expense} field="item" />
+                  <Cell expense={expense} field="place" />
+                  <Cell expense={expense} field="amount" className="text-right" />
+                  <Cell expense={expense} field="category" />
+                  <Cell expense={expense} field="paymentMethod" className="whitespace-nowrap" />
+                  <Cell expense={expense} field="memo" className="text-gray-500" />
+
+                  {/* 단일 삭제 버튼 */}
+                  <td className="border border-gray-200 px-1 text-center">
+                    {deleteId === expense.id ? (
+                      <div className="flex gap-0.5 justify-center">
+                        <button onClick={() => { deleteExpense(expense.id); setDeleteId(null); toast.success('삭제됐어요 🥺', { duration: 1200 }); }} className="text-red-500 hover:text-red-700 p-0.5"><Check size={12} /></button>
+                        <button onClick={() => setDeleteId(null)} className="text-gray-400 hover:text-gray-600 p-0.5"><X size={12} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setDeleteId(expense.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all p-0.5">
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
 
             {/* ── 인라인 입력 행 (엑셀 최하단 빈 행) ── */}
             <tr className="bg-amber-50/60 border-t-2 border-dashed border-amber-200">
+              {/* 체크박스 자리 (빈 칸) */}
+              <td className="border border-amber-200" />
               {/* 사용목적 */}
               <td className="border border-amber-200 px-1 py-1">
                 <select value={newRow.purpose}
@@ -438,7 +563,10 @@ export default function ExpenseTable() {
             {/* ── 합계 행 ── */}
             {rows.length > 0 && (
               <tr className="bg-gray-50 font-semibold">
-                <td className="border border-gray-300 px-2 py-1.5 text-xs text-gray-500" colSpan={persons.length !== 1 ? 5 : 4}>
+                <td className="border border-gray-300 px-2 py-1.5 text-xs text-gray-400 text-center">
+                  {/* 합계 행의 체크박스 자리 */}
+                </td>
+                <td className="border border-gray-300 px-2 py-1.5 text-xs text-gray-500" colSpan={persons.length !== 1 ? 4 : 3}>
                   합계 ({rows.length}건)
                 </td>
                 <td className="border border-gray-300 px-2 py-1.5 text-xs text-right text-pink-700 font-bold">
@@ -453,7 +581,7 @@ export default function ExpenseTable() {
 
       {/* 안내 */}
       <p className="text-[11px] text-gray-300 px-3 py-1.5">
-        💡 셀 클릭으로 수정 · 아래 노란 행에서 직접 입력 · 📸 영수증 버튼으로 AI 자동 입력
+        💡 셀 클릭으로 수정 · 체크박스로 선택 후 일괄 삭제 · 아래 노란 행에서 직접 입력 · 📸 영수증 버튼으로 AI 자동 입력
       </p>
     </div>
   );

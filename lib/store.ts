@@ -26,6 +26,7 @@ interface BudgetStore {
   addExpenses: (expenses: Omit<Expense, 'id' | 'createdAt'>[]) => void;
   updateExpense: (id: string, updates: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+  deleteExpenses: (ids: string[]) => void;  // 일괄 삭제
 
   // ── 카테고리 CRUD ────────────────────────────────
   addCategory: (category: Omit<Category, 'id'>) => void;
@@ -107,6 +108,11 @@ export const useBudgetStore = create<BudgetStore>()(
       deleteExpense: (id) =>
         set((state) => ({
           expenses: state.expenses.filter((e) => e.id !== id),
+        })),
+
+      deleteExpenses: (ids) =>
+        set((state) => ({
+          expenses: state.expenses.filter((e) => !ids.includes(e.id)),
         })),
 
       // ── 카테고리 CRUD ──────────────────────────
