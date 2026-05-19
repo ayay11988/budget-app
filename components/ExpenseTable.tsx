@@ -199,11 +199,31 @@ export default function ExpenseTable() {
     const isEditing = editCell?.id === expense.id && editCell.field === field;
     const inputCls = 'w-full border-0 outline-none bg-white text-xs px-0 py-0 focus:ring-1 focus:ring-pink-300 rounded';
 
+    // 사용목적: 클릭할 때마다 생활용→사업용→개인용→생활용 순환
+    if (field === 'purpose') {
+      return (
+        <td
+          className={`border border-gray-200 px-2 py-1 text-xs cursor-pointer select-none ${className}`}
+          title="클릭하면 변경돼요"
+          onClick={() => {
+            if (isDragging) return;
+            const idx = PURPOSES.indexOf(expense.purpose);
+            const next = PURPOSES[(idx + 1) % PURPOSES.length];
+            updateExpense(expense.id, { purpose: next });
+          }}
+        >
+          <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium whitespace-nowrap ${purposeBadge(expense.purpose)}`}>
+            {getPurposeEmoji(expense.purpose)} {expense.purpose}
+          </span>
+        </td>
+      );
+    }
+
     if (!isEditing) {
       let display: React.ReactNode;
       switch (field) {
         case 'purpose':
-          display = <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium whitespace-nowrap ${purposeBadge(expense.purpose)}`}>{getPurposeEmoji(expense.purpose)} {expense.purpose}</span>;
+          display = null; // 위에서 이미 처리됨
           break;
         case 'amount':
           display = <span className={`font-medium tabular-nums ${expense.amount >= 100000 ? 'text-rose-600' : ''}`}>{formatAmount(expense.amount)}</span>;
