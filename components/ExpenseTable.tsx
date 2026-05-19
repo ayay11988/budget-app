@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useBudgetStore, getMonthExpenses, applyFilter } from '@/lib/store';
 import {
   formatAmount, formatAmountInput, parseAmount,
@@ -76,9 +76,40 @@ export default function ExpenseTable() {
   const [editValue, setEditValue] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // ── 체크박스 선택 상태 ────────────────────────────
+  // ── 체크박스 + 드래그 선택 상태 ──────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragAnchorIdx, setDragAnchorIdx] = useState<number | null>(null);
+
+  // 드래그 중 텍스트 선택 방지 + mouseup 감지
+  useEffect(() => {
+    const onMouseUp = () => setIsDragging(false);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
+  }, []);
+
+  // 드래그로 범위 선택
+  const handleRowMouseDown = useCallback((idx: number, id: string, e: React.MouseEvent) => {
+    // 체크박스 클릭·셀 편집 클릭은 제외
+    if ((e.target as HTMLElement).closest('input, select, button, td[data-edit]')) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragAnchorIdx(idx);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setShowBulkConfirm(false);
+  }, []);
+
+  const handleRowMouseEnter = useCallback((idx: number, id: string) => {
+    if (!isDragging || dragAnchorIdx === null) return;
+    const lo = Math.min(dragAnchorIdx, idx);
+    const hi = Math.max(dragAnchorIdx, idx);
+    setSelectedIds(new Set(rows.slice(lo, hi + 1).map((r) => r.id)));
+  }, [isDragging, dragAnchorIdx, rows]);
 
   // 하단 추가 행 상태
   const [newRow, setNewRow] = useState(EMPTY_FORM());
@@ -415,11 +446,13 @@ export default function ExpenseTable() {
               return (
                 <tr
                   key={expense.id}
-                  className={`group transition-colors ${
+                  className={`group transition-colors select-none ${
                     isChecked
-                      ? 'bg-red-50 border-l-2 border-l-red-300'
+                      ? 'bg-blue-50 border-l-2 border-l-blue-400'
                       : rowBg(expense.purpose, idx % 2 === 0)
                   }`}
+                  onMouseDown={(e) => handleRowMouseDown(idx, expense.id, e)}
+                  onMouseEnter={() => handleRowMouseEnter(idx, expense.id)}
                 >
                   {/* 체크박스 셀 */}
                   <td className="border border-gray-200 px-2 py-1 text-center">
@@ -579,9 +612,43 @@ export default function ExpenseTable() {
         </table>
       </div>
 
+      {/* ── 엑셀 스타일 하단 상태바 ── */}
+      {selectedIds.size > 0 && (() => {
+        const sel = rows.filter((r) => selectedIds.has(r.id));
+        const sum = sel.reduce((s, r) => s + r.amount, 0);
+        const avg = Math.round(sum / sel.length);
+        const max = Math.max(...sel.map((r) => r.amount));
+        const min = Math.min(...sel.map((r) => r.amount));
+        return (
+          <div className="flex items-center gap-5 px-4 py-2 bg-gray-700 text-white text-xs border-t border-gray-600 rounded-b-xl">
+            <span className="text-gray-300">선택</span>
+            <span className="font-semibold text-white">{sel.length.toLocaleString('ko-KR')}개</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-gray-300">합계</span>
+            <span className="font-semibold text-yellow-300">{formatAmount(sum)}</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-gray-300">평균</span>
+            <span className="font-semibold text-green-300">{formatAmount(avg)}</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-gray-300">최대</span>
+            <span className="font-semibold text-red-300">{formatAmount(max)}</span>
+            <span className="text-gray-500">|</span>
+            <span className="text-gray-300">최소</span>
+            <span className="font-semibold text-blue-300">{formatAmount(min)}</span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-auto text-gray-400 hover:text-white transition-colors"
+              title="선택 해제"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        );
+      })()}
+
       {/* 안내 */}
       <p className="text-[11px] text-gray-300 px-3 py-1.5">
-        💡 셀 클릭으로 수정 · 체크박스로 선택 후 일괄 삭제 · 아래 노란 행에서 직접 입력 · 📸 영수증 버튼으로 AI 자동 입력
+        💡 행을 드래그하거나 체크박스로 선택 → 하단에 합계·평균 표시 · 셀 클릭으로 수정
       </p>
     </div>
   );

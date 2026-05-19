@@ -332,7 +332,7 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
       const category = String(getCol(row, '카테고리', '종류', 'category') ?? '').trim();
       const person = String(getCol(row, '지출한사람', '지출한 사람', 'person', '이름', '사용자', '지출') ?? '').trim();
       const memo = String(getCol(row,
-        '기타', '메모', 'memo', '비고', '할부', '할부?', '할부개월', '할부여부',
+        '기타', '메모', 'memo', '비고', '할부', '할부?', '할부개월', '할부여부', '매출',
       ) ?? '').trim();
       const pmRaw = String(getCol(row, '지출방법', '지불방법', '결제방법', 'paymentMethod') ?? '').trim();
       const VALID_METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
