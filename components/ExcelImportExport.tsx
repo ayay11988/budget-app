@@ -72,13 +72,9 @@ export default function ExcelImportExport() {
         const result = importFromExcel(data, detectedCard ?? undefined);
 
         if (result.expenses.length === 0) {
-          // 진단 경고가 있으면 모달로 보여줘서 컬럼 정보를 확인할 수 있게 함
-          if (result.warnings.length > 0) {
-            setPendingImport({ ...result, detectedCard });
-            setShowImportModal(true);
-          } else {
-            toast.error('가져올 지출 데이터가 없어요 🥺');
-          }
+          // 진단 정보가 들어있으므로 항상 모달 표시
+          setPendingImport({ ...result, detectedCard });
+          setShowImportModal(true);
           return;
         }
 
@@ -207,14 +203,15 @@ export default function ExcelImportExport() {
               </div>
             )}
 
-            {/* 경고 메시지 */}
+            {/* 진단 경고 메시지 — 전체 표시 */}
             {pendingImport.warnings.length > 0 && (
-              <div className="mb-3 p-2 bg-yellow-50 rounded-xl text-xs text-yellow-700 flex gap-1.5">
-                <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                <div>
-                  {pendingImport.warnings.slice(0, 2).map((w, i) => <p key={i}>{w}</p>)}
-                  {pendingImport.warnings.length > 2 && <p>외 {pendingImport.warnings.length - 2}개...</p>}
+              <div className="mb-3 p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800 space-y-1 max-h-52 overflow-y-auto">
+                <div className="flex items-center gap-1 font-semibold mb-1">
+                  <AlertCircle size={13} /> 진단 정보
                 </div>
+                {pendingImport.warnings.map((w, i) => (
+                  <p key={i} className="break-all leading-relaxed">{w}</p>
+                ))}
               </div>
             )}
 

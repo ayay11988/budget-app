@@ -273,10 +273,21 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
     const headerRow = findHeaderRow(sheet);
     const rows = parseSheetFromRow(sheet, headerRow);
 
-    // 인식된 컬럼명을 경고로 노출 (디버그용 — 첫 번째 데이터 시트만)
-    if (expenses.length === 0 && rows.length > 0) {
-      const detectedCols = Object.keys(rows[0]).filter((k) => k.trim()).join(', ');
-      warnings.push(`📋 "${sheetName}" 감지된 컬럼: ${detectedCols || '(없음)'} (헤더 ${headerRow + 1}행)`);
+    // ── 상세 진단 (항상 출력) ─────────────────────
+    {
+      const cols = Object.keys(rows[0] ?? {}).filter((k) => k.trim());
+      warnings.push(`🗂️ 시트: "${sheetName}" | 헤더위치: ${headerRow + 1}행 | 데이터행: ${rows.length}개`);
+      warnings.push(`📋 컬럼목록: ${cols.join(' / ') || '(없음)'}`);
+      if (rows.length > 0) {
+        const first = rows[0];
+        const sample = cols.slice(0, 5).map((k) => `${k}="${String(first[k] ?? '').slice(0,20)}"`).join(', ');
+        warnings.push(`🔍 첫행샘플: ${sample}`);
+        // 날짜/금액/내역 각각 어떤 값을 찾았는지
+        const dv = getCol(first, '날짜','일자','거래일','결제일','이용일','승인일','거래일시','이용일시','승인일시','date');
+        const av = getCol(first, '금액','이용금액','승인금액','청구금액','결제금액','지출금액','합계금액','국내이용금액','원화금액','amount');
+        const iv = getCol(first, '내역','이용처','가맹점명','가맹점','거래내역','이용내역','적요','상품명','품목','항목','지출내역','item');
+        warnings.push(`📅 날짜값: "${String(dv ?? '못찾음')}" | 💰 금액값: "${String(av ?? '못찾음')}" | 📝 내역값: "${String(iv ?? '못찾음')}"`);
+      }
     }
 
     let added = 0;
