@@ -167,26 +167,31 @@ export default function ExpenseTable() {
     setEditValue(v);
   }
 
-  // ── 편집 저장 ────────────────────────────────────
-  function saveEdit(expense: Expense) {
+  // ── 편집 저장 (값을 직접 받음 — 한국어 IME 오작동 방지) ──────
+  function saveEditValue(expense: Expense, rawValue: string) {
     if (!editCell) return;
     const { field } = editCell;
     let updates: Partial<Expense> = {};
     switch (field) {
       case 'amount':
-        updates = { amount: parseAmount(editValue) }; break;
+        updates = { amount: parseAmount(rawValue) }; break;
       case 'date': {
-        const m = editValue.match(/(\d{1,2})월\s*(\d{1,2})일/);
+        const m = rawValue.match(/(\d{1,2})월\s*(\d{1,2})일/);
         updates = m
-          ? { date: editValue, month: parseInt(m[1], 10), day: parseInt(m[2], 10) }
-          : { date: editValue };
+          ? { date: rawValue, month: parseInt(m[1], 10), day: parseInt(m[2], 10) }
+          : { date: rawValue };
         break;
       }
-      default: updates = { [field]: editValue } as Partial<Expense>;
+      default: updates = { [field]: rawValue } as Partial<Expense>;
     }
     updateExpense(expense.id, updates);
     setEditCell(null);
     toast.success('수정됐어요 💕', { duration: 1200 });
+  }
+
+  // select용 (value 상태 사용)
+  function saveEdit(expense: Expense) {
+    saveEditValue(expense, editValue);
   }
 
   // ── 새 행 추가 ──────────────────────────────────
@@ -325,11 +330,27 @@ export default function ExpenseTable() {
         </select>
       );
     } else {
+      // ※ defaultValue 사용 (비제어 입력) → 한국어 IME 조합이 끊기지 않음
+      // onBlur·Enter 시 e.target.value로 직접 읽어서 저장
       input = (
-        <input autoFocus type="text" value={editValue}
-          onChange={(e) => setEditValue(field === 'amount' ? formatAmountInput(e.target.value) : e.target.value)}
-          onBlur={() => saveEdit(expense)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }}
+        <input
+          autoFocus
+          type="text"
+          defaultValue={editValue}
+          onBlur={(e) => {
+            const v = field === 'amount' ? formatAmountInput(e.target.value) : e.target.value;
+            saveEditValue(expense, v);
+          }}
+          onKeyDown={(e) => {
+            // isComposing: 한글 조합 중이면 Enter 무시 (조합 완료 후 저장)
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              const v = field === 'amount'
+                ? formatAmountInput((e.target as HTMLInputElement).value)
+                : (e.target as HTMLInputElement).value;
+              saveEditValue(expense, v);
+            }
+            if (e.key === 'Escape') setEditCell(null);
+          }}
           className={`${inputCls} ${field === 'amount' ? 'text-right' : ''}`}
         />
       );
