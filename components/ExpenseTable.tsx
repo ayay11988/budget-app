@@ -145,8 +145,16 @@ export default function ExpenseTable() {
     setEditValue(v);
   }
 
+  // ── 탭 이동 순서 (사용목적은 클릭 전환이므로 제외) ──
+  function getTabFields() {
+    const fields = ['date'];
+    if (persons.length !== 1) fields.push('person');
+    fields.push('item', 'place', 'amount', 'category', 'paymentMethod', 'memo');
+    return fields;
+  }
+
   // ── 편집 저장 (값을 직접 받음 → 한국어 IME 정상 동작) ──
-  function saveEditValue(expense: Expense, rawValue: string) {
+  function saveEditValue(expense: Expense, rawValue: string, tabDir?: 1 | -1) {
     if (!editCell) return;
     const { field } = editCell;
     let updates: Partial<Expense> = {};
@@ -163,9 +171,26 @@ export default function ExpenseTable() {
     }
     updateExpense(expense.id, updates);
     setEditCell(null);
-    toast.success('수정됐어요 💕', { duration: 1200 });
+    if (!tabDir) toast.success('수정됐어요 💕', { duration: 1200 });
+
+    // Tab 이동: 저장 후 다음/이전 셀로 포커스
+    if (tabDir) {
+      const fields = getTabFields();
+      const idx = fields.indexOf(field);
+      const nextIdx = idx + tabDir;
+      if (nextIdx >= 0 && nextIdx < fields.length) {
+        setTimeout(() => startEdit(expense, fields[nextIdx]), 0);
+      }
+    }
   }
   function saveEdit(expense: Expense) { saveEditValue(expense, editValue); }
+
+  // select용 Tab 핸들러 (value가 이미 state에 있음)
+  function handleSelectTab(e: React.KeyboardEvent, expense: Expense) {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    saveEditValue(expense, editValue, e.shiftKey ? -1 : 1);
+  }
 
   // ── 새 행 추가 ────────────────────────────────────
   function handleAddRow() {
@@ -252,15 +277,21 @@ export default function ExpenseTable() {
     }
 
     // 편집 중
+    const selectKeyDown = (e: React.KeyboardEvent, exp: Expense) => {
+      if (e.key === 'Tab') { e.preventDefault(); saveEditValue(exp, editValue, e.shiftKey ? -1 : 1); }
+      else if (e.key === 'Enter') saveEdit(exp);
+      else if (e.key === 'Escape') setEditCell(null);
+    };
+
     let input: React.ReactNode;
     if (field === 'purpose') {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }} className={inputCls}>{PURPOSES.map((p) => <option key={p} value={p}>{getPurposeEmoji(p)} {p}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{PURPOSES.map((p) => <option key={p} value={p}>{getPurposeEmoji(p)} {p}</option>)}</select>;
     } else if (field === 'paymentMethod') {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }} className={inputCls}>{METHODS.map((m) => <option key={m} value={m}>{getPaymentEmoji(m)} {m}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{METHODS.map((m) => <option key={m} value={m}>{getPaymentEmoji(m)} {m}</option>)}</select>;
     } else if (field === 'category') {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }} className={inputCls}><option value="">-</option>{filteredCats(editingExpense?.purpose ?? '생활용').map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}><option value="">-</option>{filteredCats(editingExpense?.purpose ?? '생활용').map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select>;
     } else if (field === 'person' && persons.length > 1) {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(expense); if (e.key === 'Escape') setEditCell(null); }} className={inputCls}>{persons.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{persons.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>;
     } else {
       // defaultValue 사용 → 한국어 IME 조합이 끊기지 않음
       input = (
@@ -269,6 +300,14 @@ export default function ExpenseTable() {
           defaultValue={editValue}
           onBlur={(e) => saveEditValue(expense, field === 'amount' ? formatAmountInput(e.target.value) : e.target.value)}
           onKeyDown={(e) => {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              const val = field === 'amount'
+                ? formatAmountInput((e.target as HTMLInputElement).value)
+                : (e.target as HTMLInputElement).value;
+              saveEditValue(expense, val, e.shiftKey ? -1 : 1);
+              return;
+            }
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               saveEditValue(expense, field === 'amount' ? formatAmountInput((e.target as HTMLInputElement).value) : (e.target as HTMLInputElement).value);
             }
