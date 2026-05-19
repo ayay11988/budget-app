@@ -4,13 +4,21 @@
 
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useBudgetStore, getMonthExpenses, applyFilter } from '@/lib/store';
 import { exportToExcel, importFromExcel, detectCardFromFilename } from '@/lib/excel';
 import { getMonthLabel } from '@/lib/utils';
-import { Download, Upload, X, AlertCircle } from 'lucide-react';
+import { Download, Upload, X, AlertCircle, Undo2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ImportMode } from '@/lib/types';
+import { ImportMode, Expense, Category, Person } from '@/lib/types';
+
+interface UndoSnapshot {
+  expenses: Expense[];
+  categories: Category[];
+  persons: Person[];
+  count: number;       // 가져온 항목 수 (안내 메시지용)
+  mode: ImportMode;
+}
 
 export default function ExcelImportExport() {
   const {
@@ -27,8 +35,28 @@ export default function ExcelImportExport() {
     categories: ReturnType<typeof importFromExcel>['categories'];
     persons: ReturnType<typeof importFromExcel>['persons'];
     warnings: string[];
-    detectedCard: string | null; // 파일명에서 감지한 카드명
+    detectedCard: string | null;
   } | null>(null);
+
+  // ── 실행취소 스냅샷 ──────────────────────────────
+  const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 60초 후 자동으로 실행취소 버튼 사라짐
+  useEffect(() => {
+    if (undoSnapshot) {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = setTimeout(() => setUndoSnapshot(null), 60000);
+    }
+    return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
+  }, [undoSnapshot]);
+
+  function handleUndo() {
+    if (!undoSnapshot) return;
+    replaceAll(undoSnapshot.expenses, undoSnapshot.categories, undoSnapshot.persons);
+    toast.success(`가져오기를 취소했어요 ↩️ (${undoSnapshot.count}개 항목 삭제됨)`);
+    setUndoSnapshot(null);
+  }
 
   // ── 내보내기 ──────────────────────────────────────
   function handleExport(mode: 'current' | 'all' | 'filtered') {
@@ -48,7 +76,7 @@ export default function ExcelImportExport() {
       exportToExcel(targetExpenses, categories, persons, { mode, year: selectedYear, month: selectedMonth, label });
       toast.success('엑셀 파일이 다운로드됐어요 📥');
       setShowExportModal(false);
-    } catch (err) {
+    } catch {
       toast.error('내보내기에 실패했어요 😢');
     }
   }
@@ -58,7 +86,6 @@ export default function ExcelImportExport() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 파일명에서 카드사 감지 (하나/삼성/국민/현대 등)
     const detectedCard = detectCardFromFilename(file.name);
     if (detectedCard) {
       toast(`💳 ${detectedCard} 파일로 인식됐어요`, { duration: 2000 });
@@ -68,24 +95,15 @@ export default function ExcelImportExport() {
     reader.onload = (ev) => {
       try {
         const data = ev.target?.result as ArrayBuffer;
-        // 파일명에서 감지한 카드명을 기본 지불방법으로 전달
         const result = importFromExcel(data, detectedCard ?? undefined);
-
-        if (result.expenses.length === 0) {
-          // 진단 정보가 들어있으므로 항상 모달 표시
-          setPendingImport({ ...result, detectedCard });
-          setShowImportModal(true);
-          return;
-        }
 
         setPendingImport({ ...result, detectedCard });
         setShowImportModal(true);
-      } catch (err) {
+      } catch {
         toast.error('파일을 읽는 중 오류가 발생했어요 😢');
       }
     };
     reader.readAsArrayBuffer(file);
-    // 같은 파일 재선택 가능하도록 초기화
     e.target.value = '';
   }
 
@@ -93,6 +111,15 @@ export default function ExcelImportExport() {
   function handleImportConfirm(mode: ImportMode) {
     if (!pendingImport) return;
     const { expenses: newExp, categories: newCats, persons: newPers } = pendingImport;
+
+    // 실행 전 스냅샷 저장 (실행취소용)
+    setUndoSnapshot({
+      expenses: [...expenses],
+      categories: [...categories],
+      persons: [...persons],
+      count: newExp.length,
+      mode,
+    });
 
     if (mode === 'overwrite') {
       replaceAll(newExp, newCats.length > 0 ? newCats : categories, newPers.length > 0 ? newPers : persons);
@@ -135,6 +162,28 @@ export default function ExcelImportExport() {
           <span className="sm:hidden">내보내기</span>
         </button>
       </div>
+
+      {/* ── 가져오기 실행취소 플로팅 버튼 ── */}
+      {undoSnapshot && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white px-4 py-3 rounded-2xl shadow-xl fade-in">
+          <span className="text-sm">
+            <span className="font-semibold text-yellow-300">{undoSnapshot.count}개</span> 항목을 가져왔어요
+          </span>
+          <button
+            onClick={handleUndo}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-400 text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            <Undo2 size={14} />
+            전부 취소
+          </button>
+          <button
+            onClick={() => setUndoSnapshot(null)}
+            className="text-gray-400 hover:text-gray-200"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* ── 내보내기 모달 ── */}
       {showExportModal && (
@@ -203,7 +252,7 @@ export default function ExcelImportExport() {
               </div>
             )}
 
-            {/* 진단 경고 메시지 — 전체 표시 */}
+            {/* 진단 경고 메시지 */}
             {pendingImport.warnings.length > 0 && (
               <div className="mb-3 p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800 space-y-1 max-h-52 overflow-y-auto">
                 <div className="flex items-center gap-1 font-semibold mb-1">
