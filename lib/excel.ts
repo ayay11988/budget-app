@@ -74,6 +74,16 @@ function parseExcelDate(value: unknown): { dateStr: string; month: number; day: 
   return null;
 }
 
+// ── 날짜값에서 연도만 추출 ────────────────────────────────────────────────────
+function parseYearFromDateValue(value: unknown): number | null {
+  if (value instanceof Date && !isNaN(value.getTime())) return value.getUTCFullYear();
+  const str = String(value ?? '').trim();
+  // YYYY- / YYYY. / YYYY/ 패턴
+  const m = str.match(/^(\d{4})[.\-\/]/);
+  if (m) return parseInt(m[1], 10);
+  return null;
+}
+
 // ── 금액 파싱 ─────────────────────────────────────────────────────────────────
 function parseExcelAmount(value: unknown): number {
   if (value === null || value === undefined || value === '') return 0;
@@ -252,6 +262,8 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
   // cellDates:true → 날짜 셀을 JS Date 객체로 변환 (raw:true와 함께 쓰면 충돌하므로 제거)
   const wb = XLSX.read(file, { type: 'array', cellDates: true });
   const warnings: string[] = [];
+  const todayYear  = new Date().getFullYear();
+  const todayMonth = new Date().getMonth() + 1;
 
   // ── 카테고리 시트 ──────────────────────────────
   const categories: Category[] = [];
@@ -320,10 +332,20 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
         '거래일시', '이용일시', '승인일시', 'date',
       );
       const parsedDate = parseExcelDate(dateVal);
-      const month = parsedDate?.month ?? (new Date().getMonth() + 1);
-      const day = parsedDate?.day ?? new Date().getDate();
+      const month = parsedDate?.month ?? todayMonth;
+      const day   = parsedDate?.day   ?? new Date().getDate();
       const dateStr = parsedDate?.dateStr
-        ?? `${String(new Date().getMonth() + 1).padStart(2, '0')}월 ${String(new Date().getDate()).padStart(2, '0')}일`;
+        ?? `${String(todayMonth).padStart(2, '0')}월 ${String(new Date().getDate()).padStart(2, '0')}일`;
+
+      // ── 연도 결정 ───────────────────────────────
+      // 날짜에 연도가 명시돼 있으면 우선 사용, 없으면 시트명에서 추출한 연도 사용
+      const parsedYear = parseYearFromDateValue(dateVal);
+      let year = parsedYear ?? sheetYear;
+      // 아직 오지 않은 달(미래)이면 전년도로 자동 보정
+      // 예: 오늘이 2026년 5월인데 11월/12월이면 → 2025년으로
+      if (year > todayYear || (year === todayYear && month > todayMonth)) {
+        year = year - 1;
+      }
 
       // ── 금액 ──────────────────────────────────
       const amountVal = getCol(row,
@@ -367,7 +389,7 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
         id: generateId(),
         purpose,
         date: dateStr,
-        year: sheetYear,
+        year,
         month,
         day,
         person,
