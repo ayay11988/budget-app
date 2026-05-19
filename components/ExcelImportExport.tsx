@@ -72,7 +72,13 @@ export default function ExcelImportExport() {
         const result = importFromExcel(data, detectedCard ?? undefined);
 
         if (result.expenses.length === 0) {
-          toast.error('가져올 지출 데이터가 없어요 🥺');
+          // 진단 경고가 있으면 모달로 보여줘서 컬럼 정보를 확인할 수 있게 함
+          if (result.warnings.length > 0) {
+            setPendingImport({ ...result, detectedCard });
+            setShowImportModal(true);
+          } else {
+            toast.error('가져올 지출 데이터가 없어요 🥺');
+          }
           return;
         }
 
@@ -182,10 +188,16 @@ export default function ExcelImportExport() {
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-3">
-              <span className="font-semibold text-pink-600">{pendingImport.expenses.length}개</span>의 지출 항목을 발견했어요.
-              어떻게 불러올까요?
-            </p>
+            {pendingImport.expenses.length === 0 ? (
+              <p className="text-sm text-red-600 mb-3 font-medium">
+                🥺 지출 데이터를 인식하지 못했어요. 아래 컬럼 정보를 확인해주세요.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600 mb-3">
+                <span className="font-semibold text-pink-600">{pendingImport.expenses.length}개</span>의 지출 항목을 발견했어요.
+                어떻게 불러올까요?
+              </p>
+            )}
 
             {/* 카드사 감지 안내 */}
             {pendingImport.detectedCard && (
@@ -206,22 +218,24 @@ export default function ExcelImportExport() {
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => handleImportConfirm('merge')}
-                className="w-full px-4 py-3 text-sm text-left bg-green-50 hover:bg-green-100 rounded-xl transition-colors"
-              >
-                <span className="font-medium text-green-700">병합</span>
-                <p className="text-xs text-gray-500 mt-0.5">기존 데이터 유지 + 새 데이터 추가 (중복 제외)</p>
-              </button>
-              <button
-                onClick={() => handleImportConfirm('overwrite')}
-                className="w-full px-4 py-3 text-sm text-left bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
-              >
-                <span className="font-medium text-red-600">덮어쓰기</span>
-                <p className="text-xs text-gray-500 mt-0.5">기존 데이터를 모두 지우고 새로 불러오기</p>
-              </button>
-            </div>
+            {pendingImport.expenses.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleImportConfirm('merge')}
+                  className="w-full px-4 py-3 text-sm text-left bg-green-50 hover:bg-green-100 rounded-xl transition-colors"
+                >
+                  <span className="font-medium text-green-700">병합</span>
+                  <p className="text-xs text-gray-500 mt-0.5">기존 데이터 유지 + 새 데이터 추가 (중복 제외)</p>
+                </button>
+                <button
+                  onClick={() => handleImportConfirm('overwrite')}
+                  className="w-full px-4 py-3 text-sm text-left bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
+                >
+                  <span className="font-medium text-red-600">덮어쓰기</span>
+                  <p className="text-xs text-gray-500 mt-0.5">기존 데이터를 모두 지우고 새로 불러오기</p>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
