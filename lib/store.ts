@@ -216,17 +216,18 @@ export const useBudgetStore = create<BudgetStore>()(
     }),
     {
       name: 'budget-storage',
-      // 앱 로드 시 새로 추가된 기본 카테고리 자동 병합
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          // 새 기본 카테고리 자동 병합
-          const merged = mergeSeedCategories(state.categories);
-          if (merged.length !== state.categories.length) {
-            state.categories = merged;
-          }
-          // 미래 날짜로 잘못 저장된 지출 연도 보정
-          state.expenses = fixFutureExpenses(state.expenses);
+      version: 2,
+      migrate: (persistedState: unknown, _version: number) => {
+        const state = persistedState as Record<string, unknown>;
+        // 미래 날짜로 잘못 저장된 지출 연도 보정
+        if (Array.isArray(state.expenses)) {
+          state.expenses = fixFutureExpenses(state.expenses as Expense[]);
         }
+        // 새 기본 카테고리 병합
+        if (Array.isArray(state.categories)) {
+          state.categories = mergeSeedCategories(state.categories as Category[]);
+        }
+        return state;
       },
     }
   )
