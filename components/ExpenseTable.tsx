@@ -387,7 +387,7 @@ export default function ExpenseTable() {
               {persons.length !== 1 && (
                 <th className="border border-gray-300 px-2 py-2 text-left font-semibold whitespace-nowrap w-[70px]">지출한 사람</th>
               )}
-              <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[160px]">내역</th>
+              <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[320px]">내역</th>
               <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[100px]">구매처</th>
               <th className="border border-gray-300 px-2 py-2 text-right font-semibold w-[90px]">금액</th>
               <th className="border border-gray-300 px-2 py-2 text-left font-semibold w-[90px]">종류</th>
