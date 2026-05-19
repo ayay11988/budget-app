@@ -63,17 +63,28 @@ function parseExcelAmount(value: unknown): number {
 }
 
 // ── 컬럼명 유연 매칭 ──────────────────────────────────────────────────────────
+// 1단계: 정확 일치 → 2단계: 공백 제거 후 일치 → 3단계: 포함(contains) 일치
 function getCol(row: Record<string, unknown>, ...keys: string[]): unknown {
+  const rowKeys = Object.keys(row);
+
   for (const key of keys) {
-    // 정확히 일치
+    // 1단계: 정확히 일치
     if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
-    // 공백 제거 후 일치
+
+    // 2단계: 공백 제거 후 정확 일치
     const normalKey = key.replace(/\s/g, '');
-    const found = Object.keys(row).find(
-      (k) => k.trim().replace(/\s/g, '') === normalKey
-    );
-    if (found !== undefined && row[found] !== undefined && row[found] !== null && row[found] !== '') {
-      return row[found];
+    const exact = rowKeys.find((k) => k.trim().replace(/\s/g, '') === normalKey);
+    if (exact && row[exact] !== undefined && row[exact] !== null && row[exact] !== '') {
+      return row[exact];
+    }
+
+    // 3단계: 포함(contains) — "이용일"로 "이용일자"도 매칭
+    const partial = rowKeys.find((k) => {
+      const nk = k.trim().replace(/\s/g, '');
+      return nk.includes(normalKey) || normalKey.includes(nk);
+    });
+    if (partial && row[partial] !== undefined && row[partial] !== null && row[partial] !== '') {
+      return row[partial];
     }
   }
   return undefined;
@@ -261,6 +272,12 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
     // 헤더 행 자동 탐지 (카드사 엑셀처럼 상단에 안내문구가 있어도 동작)
     const headerRow = findHeaderRow(sheet);
     const rows = parseSheetFromRow(sheet, headerRow);
+
+    // 인식된 컬럼명을 경고로 노출 (디버그용 — 첫 번째 데이터 시트만)
+    if (expenses.length === 0 && rows.length > 0) {
+      const detectedCols = Object.keys(rows[0]).filter((k) => k.trim()).join(', ');
+      warnings.push(`📋 "${sheetName}" 감지된 컬럼: ${detectedCols || '(없음)'} (헤더 ${headerRow + 1}행)`);
+    }
 
     let added = 0;
     for (const row of rows) {
