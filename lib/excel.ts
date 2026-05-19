@@ -79,6 +79,50 @@ function getCol(row: Record<string, unknown>, ...keys: string[]): unknown {
   return undefined;
 }
 
+// ── 헤더가 몇 번째 행에 있는지 자동 탐지 ──────────────────────────────────────
+// 카드사 엑셀은 상단에 안내문구가 여러 행 있고 실제 헤더가 아래에 있는 경우가 많음
+const DATE_KEYWORDS   = ['날짜', '일자', '거래일', '결제일', '이용일', '승인일', 'date', '거래일시', '이용일시'];
+const AMOUNT_KEYWORDS = ['금액', '이용금액', '승인금액', '청구금액', '결제금액', '지출금액', '합계금액', 'amount'];
+const ITEM_KEYWORDS   = ['내역', '이용처', '가맹점', '거래내역', '적요', '상품명', '품목', '항목', '이용내역', 'item'];
+
+function findHeaderRow(sheet: XLSX.WorkSheet): number {
+  // aoa_to_json으로 원시 배열 읽기
+  const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+
+  for (let r = 0; r < Math.min(aoa.length, 15); r++) {
+    const row = aoa[r] as unknown[];
+    const cells = row.map((c) => String(c ?? '').trim().replace(/\s/g, '').toLowerCase());
+    // 날짜·금액·내역 키워드 중 2개 이상 매칭되면 헤더 행으로 판단
+    let matches = 0;
+    for (const cell of cells) {
+      if (DATE_KEYWORDS.some((k) => cell.includes(k.toLowerCase()))) matches++;
+      else if (AMOUNT_KEYWORDS.some((k) => cell.includes(k.toLowerCase()))) matches++;
+      else if (ITEM_KEYWORDS.some((k) => cell.includes(k.toLowerCase()))) matches++;
+    }
+    if (matches >= 2) return r;
+  }
+  return 0; // 못 찾으면 기본 0행
+}
+
+// ── 헤더 행을 지정해서 sheet_to_json 파싱 ────────────────────────────────────
+function parseSheetFromRow(sheet: XLSX.WorkSheet, headerRow: number): Record<string, unknown>[] {
+  const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: true });
+  if (aoa.length <= headerRow) return [];
+
+  const headers = (aoa[headerRow] as unknown[]).map((h) => String(h ?? '').trim());
+  const result: Record<string, unknown>[] = [];
+
+  for (let r = headerRow + 1; r < aoa.length; r++) {
+    const rowArr = aoa[r] as unknown[];
+    const obj: Record<string, unknown> = {};
+    headers.forEach((h, i) => {
+      if (h) obj[h] = rowArr[i] ?? '';
+    });
+    result.push(obj);
+  }
+  return result;
+}
+
 // ── 엑셀 내보내기 ─────────────────────────────────────────────────────────────
 
 export function exportToExcel(
@@ -214,17 +258,17 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
     const sheet = wb.Sheets[sheetName];
     if (!sheet) continue;
 
-    // raw:true → 숫자 셀을 문자열로 변환하지 않고 그대로 받음 (금액 파싱용)
-    // 날짜 셀은 XLSX.read()의 cellDates:true 덕분에 이미 JS Date 객체로 변환됨
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: '',
-      raw: true,
-    });
+    // 헤더 행 자동 탐지 (카드사 엑셀처럼 상단에 안내문구가 있어도 동작)
+    const headerRow = findHeaderRow(sheet);
+    const rows = parseSheetFromRow(sheet, headerRow);
 
     let added = 0;
     for (const row of rows) {
       // ── 날짜 ──────────────────────────────────
-      const dateVal = getCol(row, '날짜', 'date', '일자', '거래일', '결제일', '지출날짜', '지출 날짜');
+      const dateVal = getCol(row,
+        '날짜', '일자', '거래일', '결제일', '이용일', '승인일', '지출날짜', '지출 날짜',
+        '거래일시', '이용일시', '승인일시', 'date',
+      );
       const parsedDate = parseExcelDate(dateVal);
       const month = parsedDate?.month ?? (new Date().getMonth() + 1);
       const day = parsedDate?.day ?? new Date().getDate();
@@ -232,12 +276,20 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
         ?? `${String(new Date().getMonth() + 1).padStart(2, '0')}월 ${String(new Date().getDate()).padStart(2, '0')}일`;
 
       // ── 금액 ──────────────────────────────────
-      const amountVal = getCol(row, '금액', 'amount', '가격', '결제금액', '지출금액', '합계금액');
+      const amountVal = getCol(row,
+        '금액', '이용금액', '승인금액', '청구금액', '결제금액', '지출금액', '합계금액',
+        '국내이용금액', '원화금액', 'amount',
+      );
       const amount = parseExcelAmount(amountVal);
 
       // ── 필수값 검사 ───────────────────────────
-      const item = String(getCol(row, '내역', 'item', '항목', '상품명', '품목', '지출내역') ?? '').trim();
-      if (!item && amount === 0) continue; // 완전히 빈 행은 스킵
+      const item = String(getCol(row,
+        '내역', '이용처', '가맹점명', '가맹점', '거래내역', '이용내역', '적요',
+        '상품명', '품목', '항목', '지출내역', 'item',
+      ) ?? '').trim();
+      if (!item && amount === 0) continue; // 완전히 빈 행 스킵
+      // 합계·소계 행 스킵
+      if (/^(합계|소계|총계|total|sum)/i.test(item)) continue;
 
       // ── 사용목적 ──────────────────────────────
       const purposeRaw = String(getCol(row, '사용목적', 'purpose', '분류') ?? '').trim();
@@ -246,10 +298,14 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
         : '생활용';
 
       // ── 나머지 컬럼 ───────────────────────────
-      const place = String(getCol(row, '구매처', 'place', '상호', '가맹점', '거래처', '쇼핑몰') ?? '').trim();
+      const place = String(getCol(row,
+        '구매처', '가맹점명', '가맹점', '상호', '거래처', '쇼핑몰', '이용처', 'place',
+      ) ?? '').trim();
       const category = String(getCol(row, '카테고리', '종류', 'category') ?? '').trim();
       const person = String(getCol(row, '지출한사람', '지출한 사람', 'person', '이름', '사용자', '지출') ?? '').trim();
-      const memo = String(getCol(row, '기타', '메모', 'memo', '비고', '할부', '할부?') ?? '').trim();
+      const memo = String(getCol(row,
+        '기타', '메모', 'memo', '비고', '할부', '할부?', '할부개월', '할부여부',
+      ) ?? '').trim();
       const pmRaw = String(getCol(row, '지출방법', '지불방법', '결제방법', 'paymentMethod') ?? '').trim();
       const VALID_METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
       // 엑셀에 지불방법이 명시돼 있으면 그걸 쓰고, 없으면 파일명에서 감지한 카드명 사용
@@ -277,7 +333,11 @@ export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string
     }
 
     if (added === 0 && rows.length > 0) {
-      warnings.push(`"${sheetName}" 시트에서 가져올 데이터를 찾지 못했어요`);
+      // 요약·안내 시트명이면 경고 생략 (카드사 엑셀에 흔히 존재)
+      const skipNames = /요약|통계|안내|guide|summary|total|합계|README/i;
+      if (!skipNames.test(sheetName)) {
+        warnings.push(`"${sheetName}" 시트에서 가져올 데이터를 찾지 못했어요`);
+      }
     }
   }
 
