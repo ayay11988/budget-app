@@ -151,7 +151,27 @@ export interface ImportResult {
   warnings: string[];
 }
 
-export function importFromExcel(file: ArrayBuffer): ImportResult {
+// 파일명에서 카드사 감지 → 지불방법 기본값 반환
+export function detectCardFromFilename(filename: string): string | null {
+  const name = filename.replace(/\.[^.]+$/, ''); // 확장자 제거
+  const CARDS: { keyword: string; label: string }[] = [
+    { keyword: '하나', label: '하나카드' },
+    { keyword: '삼성', label: '삼성카드' },
+    { keyword: '국민', label: '국민카드' },
+    { keyword: '현대', label: '현대카드' },
+    { keyword: '신한', label: '신한카드' },
+    { keyword: '롯데', label: '롯데카드' },
+    { keyword: '우리', label: '우리카드' },
+    { keyword: 'bc', label: 'BC카드' },
+    { keyword: 'BC', label: 'BC카드' },
+  ];
+  for (const { keyword, label } of CARDS) {
+    if (name.includes(keyword)) return label;
+  }
+  return null;
+}
+
+export function importFromExcel(file: ArrayBuffer, defaultPaymentMethod?: string): ImportResult {
   // cellDates:true → 날짜 셀을 JS Date 객체로 변환 (raw:true와 함께 쓰면 충돌하므로 제거)
   const wb = XLSX.read(file, { type: 'array', cellDates: true });
   const warnings: string[] = [];
@@ -230,11 +250,12 @@ export function importFromExcel(file: ArrayBuffer): ImportResult {
       const category = String(getCol(row, '카테고리', '종류', 'category') ?? '').trim();
       const person = String(getCol(row, '지출한사람', '지출한 사람', 'person', '이름', '사용자', '지출') ?? '').trim();
       const memo = String(getCol(row, '기타', '메모', 'memo', '비고', '할부', '할부?') ?? '').trim();
-      const pmRaw = String(getCol(row, '지출방법', '지불방법', '결제방법', 'paymentMethod') ?? '기타').trim();
+      const pmRaw = String(getCol(row, '지출방법', '지불방법', '결제방법', 'paymentMethod') ?? '').trim();
       const VALID_METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
+      // 엑셀에 지불방법이 명시돼 있으면 그걸 쓰고, 없으면 파일명에서 감지한 카드명 사용
       const paymentMethod: PaymentMethod = VALID_METHODS.includes(pmRaw as PaymentMethod)
         ? (pmRaw as PaymentMethod)
-        : '기타';
+        : (defaultPaymentMethod as PaymentMethod | undefined) ?? '기타';
 
       expenses.push({
         id: generateId(),

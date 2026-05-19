@@ -6,7 +6,7 @@
 
 import { useRef, useState } from 'react';
 import { useBudgetStore, getMonthExpenses, applyFilter } from '@/lib/store';
-import { exportToExcel, importFromExcel } from '@/lib/excel';
+import { exportToExcel, importFromExcel, detectCardFromFilename } from '@/lib/excel';
 import { getMonthLabel } from '@/lib/utils';
 import { Download, Upload, X, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -27,6 +27,7 @@ export default function ExcelImportExport() {
     categories: ReturnType<typeof importFromExcel>['categories'];
     persons: ReturnType<typeof importFromExcel>['persons'];
     warnings: string[];
+    detectedCard: string | null; // 파일명에서 감지한 카드명
   } | null>(null);
 
   // ── 내보내기 ──────────────────────────────────────
@@ -57,18 +58,25 @@ export default function ExcelImportExport() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // 파일명에서 카드사 감지 (하나/삼성/국민/현대 등)
+    const detectedCard = detectCardFromFilename(file.name);
+    if (detectedCard) {
+      toast(`💳 ${detectedCard} 파일로 인식됐어요`, { duration: 2000 });
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const data = ev.target?.result as ArrayBuffer;
-        const result = importFromExcel(data);
+        // 파일명에서 감지한 카드명을 기본 지불방법으로 전달
+        const result = importFromExcel(data, detectedCard ?? undefined);
 
         if (result.expenses.length === 0) {
           toast.error('가져올 지출 데이터가 없어요 🥺');
           return;
         }
 
-        setPendingImport(result);
+        setPendingImport({ ...result, detectedCard });
         setShowImportModal(true);
       } catch (err) {
         toast.error('파일을 읽는 중 오류가 발생했어요 😢');
@@ -178,6 +186,14 @@ export default function ExcelImportExport() {
               <span className="font-semibold text-pink-600">{pendingImport.expenses.length}개</span>의 지출 항목을 발견했어요.
               어떻게 불러올까요?
             </p>
+
+            {/* 카드사 감지 안내 */}
+            {pendingImport.detectedCard && (
+              <div className="mb-3 px-3 py-2 bg-blue-50 rounded-xl text-xs text-blue-700 flex items-center gap-1.5">
+                <span>💳</span>
+                <span>지불방법이 없는 항목은 <strong>{pendingImport.detectedCard}</strong>로 자동 설정됐어요</span>
+              </div>
+            )}
 
             {/* 경고 메시지 */}
             {pendingImport.warnings.length > 0 && (
