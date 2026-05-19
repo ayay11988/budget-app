@@ -20,18 +20,18 @@ import toast from 'react-hot-toast';
 const PURPOSES: Purpose[] = ['생활용', '사업용', '개인용'];
 const METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
 
-function rowBg(purpose: Purpose, isEven: boolean) {
+function rowBg(purpose: Purpose) {
   switch (purpose) {
-    case '생활용': return isEven ? 'bg-yellow-100/80 hover:bg-yellow-200/60' : 'bg-yellow-50/60 hover:bg-yellow-100/50';
-    case '사업용': return isEven ? 'bg-sky-100/80 hover:bg-sky-200/60'       : 'bg-sky-50/60 hover:bg-sky-100/50';
-    case '개인용': return isEven ? 'bg-pink-100/80 hover:bg-pink-200/60'     : 'bg-pink-50/60 hover:bg-pink-100/50';
+    case '생활용': return 'bg-yellow-100 hover:bg-yellow-200';
+    case '사업용': return 'bg-sky-100 hover:bg-sky-200';
+    case '개인용': return 'bg-pink-100 hover:bg-pink-200';
   }
 }
 function purposeBadge(purpose: Purpose) {
   switch (purpose) {
-    case '생활용': return 'bg-yellow-100 text-yellow-700';
-    case '사업용': return 'bg-sky-100 text-sky-700';
-    case '개인용': return 'bg-pink-100 text-pink-700';
+    case '생활용': return 'bg-yellow-200 text-yellow-800';
+    case '사업용': return 'bg-sky-200 text-sky-800';
+    case '개인용': return 'bg-pink-200 text-pink-800';
   }
 }
 
@@ -393,7 +393,7 @@ export default function ExpenseTable() {
                   className={`group transition-colors ${
                     isDragSelected ? 'bg-blue-100 border-l-2 border-l-blue-400' :
                     isChecked ? 'bg-red-50 border-l-2 border-l-red-300' :
-                    rowBg(expense.purpose, idx % 2 === 0)
+                    rowBg(expense.purpose)
                   }`}
                   onMouseDown={(e) => handleRowMouseDown(idx, e)}
                   onMouseEnter={(e) => handleRowMouseEnter(idx, e)}

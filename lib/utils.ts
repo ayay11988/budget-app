@@ -93,9 +93,9 @@ export function getPurposeColorClass(purpose: Purpose): string {
 /** 사용목적에 따른 행 배경색 (엑셀 내보내기용) */
 export function getPurposeBgColor(purpose: Purpose): string {
   switch (purpose) {
-    case '생활용': return 'FEF9C3';  // 파스텔 노란
-    case '사업용': return 'D4E6FF';  // 파스텔 블루
-    case '개인용': return 'FFE4EC';  // 파스텔 핑크
+    case '생활용': return 'FEF08A';  // 노란 (yellow-200)
+    case '사업용': return 'BAE6FD';  // 하늘 (sky-200)
+    case '개인용': return 'FBCFE8';  // 분홍 (pink-200)
     default: return 'FFFFFF';
   }
 }
