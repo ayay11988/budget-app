@@ -20,7 +20,8 @@ import toast from 'react-hot-toast';
 const PURPOSES: Purpose[] = ['생활용', '사업용', '개인용'];
 const METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
 
-function rowBg(purpose: Purpose) {
+function rowBg(purpose: Purpose, isEven: boolean) {
+  if (!isEven) return 'bg-white hover:bg-gray-50';
   switch (purpose) {
     case '생활용': return 'bg-yellow-100 hover:bg-yellow-200';
     case '사업용': return 'bg-sky-100 hover:bg-sky-200';
@@ -228,7 +229,7 @@ export default function ExpenseTable() {
     if (field === 'purpose') {
       return (
         <td
-          className={`border border-gray-200 px-2 py-1 text-xs cursor-pointer select-none ${className}`}
+          className={`border border-gray-200 px-2 py-1.5 text-xs cursor-pointer select-none ${className}`}
           title="클릭하면 변경돼요"
           onClick={() => {
             if (isDragging) return;
@@ -270,7 +271,7 @@ export default function ExpenseTable() {
           display = String((expense as unknown as Record<string, unknown>)[field] ?? '') || <span className="text-gray-200">-</span>;
       }
       return (
-        <td className={`border border-gray-200 px-2 py-1 text-xs cursor-pointer ${className}`} onClick={() => startEdit(expense, field)}>
+        <td className={`border border-gray-200 px-2 py-1.5 text-xs cursor-pointer ${className}`} onClick={() => startEdit(expense, field)}>
           {display}
         </td>
       );
@@ -390,10 +391,10 @@ export default function ExpenseTable() {
               return (
                 <tr
                   key={expense.id}
-                  className={`group transition-colors ${
+                  className={`group transition-colors h-9 ${
                     isDragSelected ? 'bg-blue-100 border-l-2 border-l-blue-400' :
                     isChecked ? 'bg-red-50 border-l-2 border-l-red-300' :
-                    rowBg(expense.purpose)
+                    rowBg(expense.purpose, idx % 2 === 0)
                   }`}
                   onMouseDown={(e) => handleRowMouseDown(idx, e)}
                   onMouseEnter={(e) => handleRowMouseEnter(idx, e)}
