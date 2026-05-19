@@ -6,8 +6,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Expense, Category, Person, Filter, AppSettings } from './types';
-import { SEED_CATEGORIES } from './seed-categories';
+import { SEED_CATEGORIES, SEED_CATEGORY_DATA } from './seed-categories';
 import { generateId, getCurrentYearMonth } from './utils';
+
+/** 기존 카테고리 목록에 새로 추가된 기본 카테고리를 병합 (이름 기준 중복 제외) */
+function mergeSeedCategories(existing: Category[]): Category[] {
+  const existingNames = new Set(existing.map((c) => c.name));
+  const missing = SEED_CATEGORY_DATA
+    .filter((s) => !existingNames.has(s.name))
+    .map((s) => ({ ...s, id: generateId() }));
+  return missing.length > 0 ? [...existing, ...missing] : existing;
+}
 
 interface BudgetStore {
   // ── 핵심 데이터 ──────────────────────────────────
@@ -190,7 +199,16 @@ export const useBudgetStore = create<BudgetStore>()(
         }),
     }),
     {
-      name: 'budget-storage', // localStorage 키 이름
+      name: 'budget-storage',
+      // 앱 로드 시 새로 추가된 기본 카테고리 자동 병합
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const merged = mergeSeedCategories(state.categories);
+          if (merged.length !== state.categories.length) {
+            state.categories = merged;
+          }
+        }
+      },
     }
   )
 );

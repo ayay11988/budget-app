@@ -29,6 +29,7 @@ export const SEED_CATEGORY_DATA: SeedCategory[] = [
   { purpose: '사업용', name: '조교비',     description: '현금으로 지급되고 비용처리할 예정' },
   { purpose: '사업용', name: '교재제작',   description: '북펀딩 사이트에 매번 사업자 비용처리 중' },
   { purpose: '사업용', name: '구독료',     description: '매스홀릭, 제미나이, 클로드 등' },
+  { purpose: '사업용', name: '통신비',     description: '사업용 휴대폰, 인터넷 요금 등' },
 
   // ── 개인용 (혼자 쓰는 비용) ─────────────────────────────────
   { purpose: '개인용', name: '의료비',       description: '진짜 어디 아픈 거' },
