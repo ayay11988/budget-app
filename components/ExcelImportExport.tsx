@@ -122,8 +122,19 @@ export default function ExcelImportExport() {
     });
 
     if (mode === 'overwrite') {
-      replaceAll(newExp, newCats.length > 0 ? newCats : categories, newPers.length > 0 ? newPers : persons);
-      toast.success(`${newExp.length}개 지출로 교체했어요 🌸`);
+      // 가져온 데이터에 포함된 연월만 교체 — 다른 달 데이터는 그대로 유지
+      const importedMonthKeys = new Set(newExp.map((e) => `${e.year}-${e.month}`));
+      const kept = expenses.filter((e) => !importedMonthKeys.has(`${e.year}-${e.month}`));
+      replaceAll(
+        [...kept, ...newExp],
+        newCats.length > 0 ? newCats : categories,
+        newPers.length > 0 ? newPers : persons,
+      );
+      const monthList = Array.from(importedMonthKeys)
+        .sort()
+        .map((k) => { const [y, m] = k.split('-'); return `${y}년 ${m}월`; })
+        .join(', ');
+      toast.success(`${importedMonthKeys.size}개월 교체 완료 (${monthList}) 🌸`);
     } else {
       mergeExpenses(newExp, newCats, newPers);
       toast.success(`중복 제외 후 병합했어요 💕`);
@@ -277,8 +288,8 @@ export default function ExcelImportExport() {
                   onClick={() => handleImportConfirm('overwrite')}
                   className="w-full px-4 py-3 text-sm text-left bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
                 >
-                  <span className="font-medium text-red-600">덮어쓰기</span>
-                  <p className="text-xs text-gray-500 mt-0.5">기존 데이터를 모두 지우고 새로 불러오기</p>
+                  <span className="font-medium text-red-600">해당 월 교체</span>
+                  <p className="text-xs text-gray-500 mt-0.5">가져온 데이터의 달만 교체 · 다른 달은 유지</p>
                 </button>
               </div>
             )}
