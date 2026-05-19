@@ -18,6 +18,22 @@ function mergeSeedCategories(existing: Category[]): Category[] {
   return missing.length > 0 ? [...existing, ...missing] : existing;
 }
 
+/** 아직 오지 않은 달(미래)로 잘못 저장된 지출의 연도를 전년도로 보정 */
+function fixFutureExpenses(expenses: Expense[]): Expense[] {
+  const now = new Date();
+  const todayYear  = now.getFullYear();
+  const todayMonth = now.getMonth() + 1;
+  let changed = false;
+  const fixed = expenses.map((e) => {
+    if (e.year > todayYear || (e.year === todayYear && e.month > todayMonth)) {
+      changed = true;
+      return { ...e, year: e.year - 1 };
+    }
+    return e;
+  });
+  return changed ? fixed : expenses;
+}
+
 interface BudgetStore {
   // ── 핵심 데이터 ──────────────────────────────────
   expenses: Expense[];
@@ -203,10 +219,13 @@ export const useBudgetStore = create<BudgetStore>()(
       // 앱 로드 시 새로 추가된 기본 카테고리 자동 병합
       onRehydrateStorage: () => (state) => {
         if (state) {
+          // 새 기본 카테고리 자동 병합
           const merged = mergeSeedCategories(state.categories);
           if (merged.length !== state.categories.length) {
             state.categories = merged;
           }
+          // 미래 날짜로 잘못 저장된 지출 연도 보정
+          state.expenses = fixFutureExpenses(state.expenses);
         }
       },
     }
