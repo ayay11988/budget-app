@@ -37,17 +37,39 @@ function parseExcelDate(value: unknown): { dateStr: string; month: number; day: 
 
   const str = String(value).trim();
 
-  // ③ "MM월 DD일" 또는 "M월 D일"
+  // ③ "MM월 DD일" 또는 "M월 D일" (한국어)
   const koMatch = str.match(/(\d{1,2})월\s*(\d{1,2})일/);
   if (koMatch) return makeDate(parseInt(koMatch[1], 10), parseInt(koMatch[2], 10));
 
-  // ④ "YYYY-MM-DD"
+  // ④ "YYYY-MM-DD" 또는 "YYYY-MM-DD HH:MM:SS" (ISO / datetime)
   const isoMatch = str.match(/\d{4}-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) return makeDate(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10));
 
-  // ⑤ "MM/DD" 또는 "M/D"
+  // ⑤ "YYYY.MM.DD" (점 구분 — 한국 카드사 엑셀에 흔함)
+  const dotFullMatch = str.match(/\d{4}\.(\d{1,2})\.(\d{1,2})/);
+  if (dotFullMatch) return makeDate(parseInt(dotFullMatch[1], 10), parseInt(dotFullMatch[2], 10));
+
+  // ⑥ "YYYY/MM/DD" (슬래시 + 연도)
+  const slashFullMatch = str.match(/\d{4}\/(\d{1,2})\/(\d{1,2})/);
+  if (slashFullMatch) return makeDate(parseInt(slashFullMatch[1], 10), parseInt(slashFullMatch[2], 10));
+
+  // ⑦ "MM/DD" 또는 "M/D" (연도 없는 슬래시)
   const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})$/);
   if (slashMatch) return makeDate(parseInt(slashMatch[1], 10), parseInt(slashMatch[2], 10));
+
+  // ⑧ "MM.DD" 또는 "M.D" (연도 없는 점 구분)
+  const dotShortMatch = str.match(/^(\d{1,2})\.(\d{1,2})$/);
+  if (dotShortMatch) return makeDate(parseInt(dotShortMatch[1], 10), parseInt(dotShortMatch[2], 10));
+
+  // ⑨ 숫자 문자열이 날짜 시리얼처럼 보이면 재시도 (텍스트로 저장된 경우)
+  const numStr = parseFloat(str);
+  if (!isNaN(numStr) && numStr > 36526 && numStr < 73050) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = (XLSX.SSF as any).parse_date_code(numStr);
+      if (parsed && parsed.m && parsed.d) return makeDate(parsed.m, parsed.d);
+    } catch { /* ignore */ }
+  }
 
   return null;
 }
