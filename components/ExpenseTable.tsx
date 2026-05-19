@@ -82,29 +82,32 @@ export default function ExpenseTable() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragAnchorIdx, setDragAnchorIdx] = useState<number | null>(null);
 
-  // 드래그 중 텍스트 선택 방지 + mouseup 감지
+  // 드래그 중 텍스트 선택 완전 방지 + mouseup 감지
   useEffect(() => {
-    const onMouseUp = () => setIsDragging(false);
+    const onMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false);
+        document.body.style.userSelect = ''; // 텍스트 선택 복구
+      }
+    };
     window.addEventListener('mouseup', onMouseUp);
     return () => window.removeEventListener('mouseup', onMouseUp);
-  }, []);
+  }, [isDragging]);
 
-  // 드래그로 범위 선택
+  // 드래그 시작
   const handleRowMouseDown = useCallback((idx: number, id: string, e: React.MouseEvent) => {
-    // 체크박스 클릭·셀 편집 클릭은 제외
-    if ((e.target as HTMLElement).closest('input, select, button, td[data-edit]')) return;
+    if ((e.target as HTMLElement).closest('input, select, button')) return;
     e.preventDefault();
+    document.body.style.userSelect = 'none'; // 드래그 중 텍스트 선택 완전 차단
     setIsDragging(true);
     setDragAnchorIdx(idx);
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    // 첫 클릭 행 선택
+    setSelectedIds(new Set([id]));
     setShowBulkConfirm(false);
   }, []);
 
-  const handleRowMouseEnter = useCallback((idx: number, id: string) => {
+  // 드래그 중 행 진입 → 범위 확장
+  const handleRowMouseEnter = useCallback((idx: number) => {
     if (!isDragging || dragAnchorIdx === null) return;
     const lo = Math.min(dragAnchorIdx, idx);
     const hi = Math.max(dragAnchorIdx, idx);
@@ -391,7 +394,7 @@ export default function ExpenseTable() {
         </div>
       )}
 
-      <div className="table-wrapper">
+      <div className={`table-wrapper${isDragging ? ' cursor-default' : ''}`}>
         <table className="w-full border-collapse text-xs min-w-[900px]">
 
           {/* ── 헤더 ── */}
@@ -452,7 +455,7 @@ export default function ExpenseTable() {
                       : rowBg(expense.purpose, idx % 2 === 0)
                   }`}
                   onMouseDown={(e) => handleRowMouseDown(idx, expense.id, e)}
-                  onMouseEnter={() => handleRowMouseEnter(idx, expense.id)}
+                  onMouseEnter={() => handleRowMouseEnter(idx)}
                 >
                   {/* 체크박스 셀 */}
                   <td className="border border-gray-200 px-2 py-1 text-center">
