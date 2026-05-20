@@ -26,7 +26,13 @@ export async function GET() {
       return NextResponse.json({ data: null }); // 저장된 데이터 없음
     }
 
-    const res = await fetch(blobs[0].url, { cache: 'no-store' });
+    // Private store: Authorization 헤더로 직접 fetch
+    const res = await fetch(blobs[0].url, {
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+      },
+    });
     if (!res.ok) return NextResponse.json({ data: null });
 
     const data = await res.json();
@@ -43,8 +49,9 @@ export async function POST(req: NextRequest) {
   }
   try {
     const body = await req.json();
+    // Private store: access: 'public' 제거, allowOverwrite로 덮어쓰기
     await put(BLOB_PATH, JSON.stringify(body), {
-      access: 'public',
+      allowOverwrite: true,
       addRandomSuffix: false,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
