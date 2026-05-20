@@ -37,7 +37,7 @@ export async function triggerCloudLoad(): Promise<boolean> {
     if (!res.ok) {
       if (json?.noKv) {
         setStatus('no-kv');
-        toast.error('Vercel KV가 연결되지 않았어요. Vercel 대시보드에서 KV 설정을 완료해주세요.', { duration: 5000 });
+        toast.error('Vercel Blob이 연결되지 않았어요. Vercel 대시보드에서 Blob 설정을 완료해주세요.', { duration: 5000 });
       } else {
         setStatus('error');
         toast.error('☁️ 클라우드 연결 오류: ' + (json?.error ?? '알 수 없는 오류'));
