@@ -58,9 +58,14 @@ export async function triggerCloudLoad(): Promise<boolean> {
       // 클라우드가 비어있고 로컬에 데이터가 있으면 → 업로드
       if (localCount > 0) {
         setStatus('saving');
-        await saveToCloud({ expenses: state.expenses, categories: state.categories, persons: state.persons });
-        setStatus('ok');
-        toast.success(`☁️ ${localCount}개 항목을 클라우드에 저장했어요!`, { duration: 3000 });
+        const result = await saveToCloud({ expenses: state.expenses, categories: state.categories, persons: state.persons });
+        if (result.ok) {
+          setStatus('ok');
+          toast.success(`☁️ ${localCount}개 항목을 클라우드에 저장했어요!`, { duration: 3000 });
+        } else {
+          setStatus('error');
+          toast.error(`☁️ 저장 실패: ${result.error}`, { duration: 6000 });
+        }
       } else {
         setStatus('ok');
         toast('☁️ 클라우드와 로컬 모두 데이터가 없어요', { icon: '💭', duration: 2000 });
@@ -76,9 +81,14 @@ export async function triggerCloudLoad(): Promise<boolean> {
     } else {
       // 로컬이 더 많음 → 클라우드에 업로드
       setStatus('saving');
-      await saveToCloud({ expenses: state.expenses, categories: state.categories, persons: state.persons });
-      setStatus('ok');
-      toast.success(`☁️ ${localCount}개 항목을 클라우드에 저장했어요!`, { duration: 3000 });
+      const result = await saveToCloud({ expenses: state.expenses, categories: state.categories, persons: state.persons });
+      if (result.ok) {
+        setStatus('ok');
+        toast.success(`☁️ ${localCount}개 항목을 클라우드에 저장했어요!`, { duration: 3000 });
+      } else {
+        setStatus('error');
+        toast.error(`☁️ 저장 실패: ${result.error}`, { duration: 6000 });
+      }
       return false;
     }
   } catch (err) {
@@ -160,14 +170,22 @@ export function useCloudSync() {
   }, [expenses, categories, persons]);
 }
 
-export async function saveToCloud(data: { expenses: unknown; categories: unknown; persons: unknown }) {
+export async function saveToCloud(data: { expenses: unknown; categories: unknown; persons: unknown }): Promise<{ ok: boolean; error?: string }> {
   try {
-    await fetch('/api/sync', {
+    const res = await fetch('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-  } catch {
-    // 오프라인 등 — 조용히 무시
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      const errMsg = json?.error ?? `HTTP ${res.status}`;
+      console.error('[saveToCloud] 저장 실패:', errMsg);
+      return { ok: false, error: errMsg };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('[saveToCloud] 네트워크 오류:', err);
+    return { ok: false, error: String(err) };
   }
 }
