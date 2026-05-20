@@ -218,6 +218,7 @@ export const useBudgetStore = create<BudgetStore>()(
       name: 'budget-storage',
       version: 2,
       migrate: (persistedState: unknown, _version: number) => {
+        if (!persistedState || typeof persistedState !== 'object') return persistedState;
         const state = persistedState as Record<string, unknown>;
         // 미래 날짜로 잘못 저장된 지출 연도 보정
         if (Array.isArray(state.expenses)) {

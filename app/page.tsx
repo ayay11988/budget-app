@@ -16,11 +16,12 @@ import ExpenseTable from '@/components/ExpenseTable';
 import FilterBar from '@/components/FilterBar';
 import ReceiptUploader from '@/components/ReceiptUploader';
 import ExcelImportExport from '@/components/ExcelImportExport';
-import { Settings, Camera, ChevronUp, ChevronDown, BarChart2 } from 'lucide-react';
-import { useCloudSync } from '@/hooks/useCloudSync';
+import { Settings, Camera, BarChart2, RefreshCw, Cloud, CloudOff } from 'lucide-react';
+import { useCloudSync, useSyncStatus, triggerCloudLoad } from '@/hooks/useCloudSync';
 
 export default function HomePage() {
-  useCloudSync(); // ☁️ 클라우드 자동 동기화
+  useCloudSync();
+  const syncStatus = useSyncStatus();
   const { settings, setInitialized } = useBudgetStore();
   const [showWelcome, setShowWelcome] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -76,6 +77,32 @@ export default function HomePage() {
             }`}
           >
             🔍
+          </button>
+
+          {/* 클라우드 동기화 상태 */}
+          <button
+            onClick={() => triggerCloudLoad()}
+            title={
+              syncStatus === 'no-kv' ? 'Vercel KV 미설정 — 클릭해서 안내 보기' :
+              syncStatus === 'error' ? '동기화 오류 — 클릭해서 재시도' :
+              syncStatus === 'saving' ? '저장 중...' :
+              syncStatus === 'loading' ? '불러오는 중...' :
+              '클라우드 동기화 — 클릭해서 지금 불러오기'
+            }
+            className={`p-1.5 rounded-xl transition-colors ${
+              syncStatus === 'no-kv' || syncStatus === 'error'
+                ? 'text-red-400 hover:bg-red-50'
+                : syncStatus === 'loading' || syncStatus === 'saving'
+                ? 'text-blue-400 animate-pulse'
+                : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
+            }`}
+          >
+            {syncStatus === 'no-kv' || syncStatus === 'error'
+              ? <CloudOff size={16} />
+              : syncStatus === 'loading' || syncStatus === 'saving'
+              ? <RefreshCw size={16} className="animate-spin" />
+              : <Cloud size={16} />
+            }
           </button>
 
           {/* 엑셀 가져오기/내보내기 */}
