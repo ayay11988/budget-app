@@ -17,8 +17,10 @@ import FilterBar from '@/components/FilterBar';
 import ReceiptUploader from '@/components/ReceiptUploader';
 import ExcelImportExport from '@/components/ExcelImportExport';
 import { Settings, Camera, ChevronUp, ChevronDown, BarChart2 } from 'lucide-react';
+import { useCloudSync } from '@/hooks/useCloudSync';
 
 export default function HomePage() {
+  useCloudSync(); // ☁️ 클라우드 자동 동기화
   const { settings, setInitialized } = useBudgetStore();
   const [showWelcome, setShowWelcome] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
