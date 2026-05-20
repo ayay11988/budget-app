@@ -46,23 +46,41 @@ export async function triggerCloudLoad(): Promise<boolean> {
     }
 
     const { data } = json;
-    if (!data) {
-      setStatus('ok');
-      return false; // 서버에 데이터 없음
-    }
+    const cloudExp = data?.expenses ?? [];
+    const cloudCats = data?.categories ?? [];
+    const cloudPers = data?.persons ?? [];
+    const cloudCount = cloudExp.length;
 
-    const { expenses: cloudExp, categories: cloudCats, persons: cloudPers } = data;
-    const cloudCount = (cloudExp ?? []).length;
+    const state = useBudgetStore.getState();
+    const localCount = state.expenses.length;
 
     if (cloudCount === 0) {
-      setStatus('ok');
+      // 클라우드가 비어있고 로컬에 데이터가 있으면 → 업로드
+      if (localCount > 0) {
+        setStatus('saving');
+        await saveToCloud({ expenses: state.expenses, categories: state.categories, persons: state.persons });
+        setStatus('ok');
+        toast.success(`☁️ ${localCount}개 항목을 클라우드에 저장했어요!`, { duration: 3000 });
+      } else {
+        setStatus('ok');
+        toast('☁️ 클라우드와 로컬 모두 데이터가 없어요', { icon: '💭', duration: 2000 });
+      }
       return false;
     }
 
-    useBudgetStore.getState().replaceAll(cloudExp ?? [], cloudCats ?? [], cloudPers ?? []);
-    setStatus('ok');
-    toast.success(`☁️ ${cloudCount}개 항목을 클라우드에서 불러왔어요!`, { duration: 3000 });
-    return true;
+    if (cloudCount >= localCount) {
+      useBudgetStore.getState().replaceAll(cloudExp, cloudCats, cloudPers);
+      setStatus('ok');
+      toast.success(`☁️ ${cloudCount}개 항목을 클라우드에서 불러왔어요!`, { duration: 3000 });
+      return true;
+    } else {
+      // 로컬이 더 많음 → 클라우드에 업로드
+      setStatus('saving');
+      await saveToCloud({ expenses: state.expenses, categories: state.categories, persons: state.persons });
+      setStatus('ok');
+      toast.success(`☁️ ${localCount}개 항목을 클라우드에 저장했어요!`, { duration: 3000 });
+      return false;
+    }
   } catch (err) {
     console.error('[cloudSync load]', err);
     setStatus('error');
