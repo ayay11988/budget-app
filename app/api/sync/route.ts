@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     await put(BLOB_PATH, JSON.stringify(body), {
       access: 'public',
+      allowOverwrite: true,
       addRandomSuffix: false,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
