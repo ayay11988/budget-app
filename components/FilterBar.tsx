@@ -12,7 +12,7 @@ import { Search, X, SlidersHorizontal } from 'lucide-react';
 const PURPOSES: Purpose[] = ['생활용', '사업용', '개인용'];
 const METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
 
-export default function FilterBar() {
+export default function FilterBar({ onClose }: { onClose?: () => void }) {
   const { filter, setFilter, resetFilter, categories, persons } = useBudgetStore();
 
   const isFiltered =
@@ -47,21 +47,32 @@ export default function FilterBar() {
   }
 
   return (
-    <aside className="w-52 shrink-0 bg-gray-800 rounded-2xl p-4 space-y-4 text-sm self-start sticky top-4 shadow-card">
+    <aside className="w-full lg:w-52 shrink-0 bg-gray-800 rounded-2xl p-4 space-y-4 text-sm self-start sticky top-4 shadow-card">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-gray-200 font-semibold">
           <SlidersHorizontal size={14} className="text-pink-400" />
           필터
         </div>
-        {isFiltered && (
-          <button
-            onClick={resetFilter}
-            className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 transition-colors"
-          >
-            <X size={11} /> 초기화
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {isFiltered && (
+            <button
+              onClick={resetFilter}
+              className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 transition-colors"
+            >
+              <X size={11} /> 초기화
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden p-1 text-gray-400 hover:text-gray-200 transition-colors"
+              title="닫기"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 텍스트 검색 */}

@@ -99,16 +99,16 @@ export default function MonthTabs() {
       </div>
 
       {/* ── 목적별 합계 행 ── */}
-      <div className="flex gap-3 px-4 pb-3">
+      <div className="flex flex-wrap gap-2 px-4 pb-3">
         {purposeTotals.map(({ purpose, total }) => {
           const s = PURPOSE_STYLES[purpose];
           return (
-            <div key={purpose} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${s.bar}`}>
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
-              <span className={`text-xs font-medium ${s.label}`}>
+            <div key={purpose} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl ${s.bar} text-[11px] sm:text-xs`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} />
+              <span className={`font-medium ${s.label}`}>
                 {getPurposeEmoji(purpose)} {purpose}
               </span>
-              <span className={`text-xs font-bold tabular-nums ${s.label}`}>
+              <span className={`font-bold tabular-nums ${s.label}`}>
                 {total > 0 ? formatAmount(total) : '₩0'}
               </span>
             </div>

@@ -144,10 +144,21 @@ export default function HomePage() {
       </div>
 
       {/* ── 메인 컨텐츠 ── */}
-      <main className="flex gap-3 px-3 pb-6 flex-1">
-        {/* 필터 사이드바 */}
-        <div className={`${showFilter ? 'block' : 'hidden'} lg:block shrink-0`}>
-          <FilterBar />
+      <main className="flex gap-3 px-3 pb-6 flex-1 relative">
+        {/* 필터 사이드바 (데스크톱) / 모달 오버레이 (모바일) */}
+        <div
+          className={`
+            ${showFilter ? 'flex' : 'hidden'} lg:flex
+            fixed inset-0 bg-black/50 z-50 lg:relative lg:bg-transparent lg:inset-auto lg:z-auto
+            items-center justify-center p-4 lg:p-0 lg:block lg:shrink-0
+          `}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowFilter(false);
+          }}
+        >
+          <div className="w-full max-w-xs lg:max-w-none fade-in">
+            <FilterBar onClose={() => setShowFilter(false)} />
+          </div>
         </div>
 
         {/* 테이블 영역 */}
