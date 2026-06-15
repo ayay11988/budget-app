@@ -42,6 +42,7 @@ export const SEED_CATEGORY_DATA: SeedCategory[] = [
   { purpose: '개인용', name: '개인 교통비', description: '택시비, 대리비, 주차비 등' },
   { purpose: '개인용', name: '건강보조',    description: '혼자 먹는 영양제' },
   { purpose: '개인용', name: '구독료',      description: '개인 OTT, 앱, 서비스 구독' },
+  { purpose: '개인용', name: '개인 접대',   description: '개인적으로 지인을 접대한 비용' },
 ];
 
 // ID를 붙여서 Category 타입으로 변환
