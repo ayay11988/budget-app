@@ -13,7 +13,7 @@ import {
   formatAmount, formatAmountInput, parseAmount,
   getPurposeEmoji, getPaymentEmoji, getTodayFormatted, getCurrentYearMonth,
 } from '@/lib/utils';
-import { Expense, Purpose, PaymentMethod } from '@/lib/types';
+import { Expense, Purpose, PaymentMethod, ReceiptDetail } from '@/lib/types';
 import { Trash2, Check, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -92,6 +92,13 @@ export default function ExpenseTable() {
     setModalMode('edit');
     setEditingExpenseForModal(expense);
     setModalOpen(true);
+  }
+
+  // ── 영수증 상세 모달 상태 ────────────────────────
+  const [viewReceiptExpense, setViewReceiptExpense] = useState<Expense | null>(null);
+
+  function openReceiptDetail(expense: Expense) {
+    setViewReceiptExpense(expense);
   }
 
   // ── 셀 편집 상태 ────────────────────────────────
@@ -310,6 +317,26 @@ export default function ExpenseTable() {
         case 'purpose':
           display = null; // 위에서 이미 처리됨
           break;
+        case 'item':
+          display = (
+            <span className="flex items-center gap-1.5">
+              <span className="font-medium">{expense.item}</span>
+              {expense.receiptDetails && expense.receiptDetails.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openReceiptDetail(expense);
+                  }}
+                  className="px-1.5 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 rounded text-[9px] font-medium flex items-center gap-0.5 transition-colors shrink-0"
+                  title="영수증 세부 내역 보기"
+                >
+                  🧾 영수증
+                </button>
+              )}
+            </span>
+          );
+          break;
         case 'amount':
           display = <span className={`font-medium tabular-nums ${expense.amount >= 100000 ? 'text-rose-600' : ''}`}>{formatAmount(expense.amount)}</span>;
           break;
@@ -344,14 +371,15 @@ export default function ExpenseTable() {
     };
 
     let input: React.ReactNode;
+    // select: onChange에서 즉시 저장 (onBlur 제거 → 드롭다운 닫힐 때 spurious blur 방지)
     if (field === 'purpose') {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{PURPOSES.map((p) => <option key={p} value={p}>{getPurposeEmoji(p)} {p}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => saveEditValue(expense, e.target.value)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{PURPOSES.map((p) => <option key={p} value={p}>{getPurposeEmoji(p)} {p}</option>)}</select>;
     } else if (field === 'paymentMethod') {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{METHODS.map((m) => <option key={m} value={m}>{getPaymentEmoji(m)} {m}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => saveEditValue(expense, e.target.value)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{METHODS.map((m) => <option key={m} value={m}>{getPaymentEmoji(m)} {m}</option>)}</select>;
     } else if (field === 'category') {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}><option value="">-</option>{filteredCats(editingExpense?.purpose ?? '생활용').map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => saveEditValue(expense, e.target.value)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}><option value="">-</option>{filteredCats(editingExpense?.purpose ?? '생활용').map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select>;
     } else if (field === 'person' && persons.length > 1) {
-      input = <select autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => saveEdit(expense)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{persons.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>;
+      input = <select autoFocus value={editValue} onChange={(e) => saveEditValue(expense, e.target.value)} onKeyDown={(e) => selectKeyDown(e, expense)} className={inputCls}>{persons.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>;
     } else {
       // defaultValue 사용 → 한국어 IME 조합이 끊기지 않음
       input = (
@@ -468,8 +496,20 @@ export default function ExpenseTable() {
                       </span>
                     </div>
 
-                    <h4 className="text-sm font-semibold text-gray-800 truncate">
-                      {expense.item}
+                    <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                      <span className="truncate">{expense.item}</span>
+                      {expense.receiptDetails && expense.receiptDetails.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReceiptDetail(expense);
+                          }}
+                          className="px-1.5 py-0.5 bg-purple-50 active:bg-purple-100 text-purple-600 border border-purple-200 rounded text-[9px] font-medium flex items-center gap-0.5 transition-colors shrink-0"
+                        >
+                          🧾 영수증
+                        </button>
+                      )}
                     </h4>
                     <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500 flex-wrap">
                       {expense.place && <span className="truncate max-w-[120px]">📍 {expense.place}</span>}
@@ -531,6 +571,14 @@ export default function ExpenseTable() {
             updateExpense={updateExpense}
             selectedYear={selectedYear}
             selectedMonth={selectedMonth}
+          />
+        )}
+
+        {/* 영수증 세부 내역 팝업 모달 */}
+        {viewReceiptExpense && (
+          <ReceiptDetailModal
+            expense={viewReceiptExpense}
+            onClose={() => setViewReceiptExpense(null)}
           />
         )}
       </div>
@@ -614,15 +662,15 @@ export default function ExpenseTable() {
                     </div>
                   </td>
 
-                  <Cell expense={expense} field="purpose" />
-                  <Cell expense={expense} field="date" className="whitespace-nowrap" />
-                  {persons.length !== 1 && <Cell expense={expense} field="person" />}
-                  <Cell expense={expense} field="item" />
-                  <Cell expense={expense} field="place" />
-                  <Cell expense={expense} field="amount" className="text-right" />
-                  <Cell expense={expense} field="category" />
-                  <Cell expense={expense} field="paymentMethod" className="whitespace-nowrap" />
-                  <Cell expense={expense} field="memo" className="text-gray-500" />
+                  {Cell({ expense, field: 'purpose' })}
+                  {Cell({ expense, field: 'date', className: 'whitespace-nowrap' })}
+                  {persons.length !== 1 && Cell({ expense, field: 'person' })}
+                  {Cell({ expense, field: 'item' })}
+                  {Cell({ expense, field: 'place' })}
+                  {Cell({ expense, field: 'amount', className: 'text-right' })}
+                  {Cell({ expense, field: 'category' })}
+                  {Cell({ expense, field: 'paymentMethod', className: 'whitespace-nowrap' })}
+                  {Cell({ expense, field: 'memo', className: 'text-gray-500' })}
 
                   <td className="border border-gray-200 px-1 text-center">
                     {deleteId === expense.id ? (
@@ -691,6 +739,14 @@ export default function ExpenseTable() {
       <p className="text-[11px] text-gray-300 px-3 py-1.5">
         💡 셀 클릭으로 수정 · 꾹 누른 채 드래그 → 합계 표시 · 체크박스 → 일괄 삭제
       </p>
+
+      {/* 데스크톱 영수증 세부 내역 팝업 모달 */}
+      {viewReceiptExpense && (
+        <ReceiptDetailModal
+          expense={viewReceiptExpense}
+          onClose={() => setViewReceiptExpense(null)}
+        />
+      )}
     </div>
   );
 }
@@ -728,6 +784,12 @@ function ExpenseFormModal({
   const [category, setCategory] = useState(expense?.category ?? '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(expense?.paymentMethod ?? '체크카드');
   const [memo, setMemo] = useState(expense?.memo ?? '');
+  const [detailsText, setDetailsText] = useState(() => {
+    if (!expense?.receiptDetails) return '';
+    return expense.receiptDetails
+      .map((d) => `${d.name} ${d.amount}${d.qty ? ` ${d.qty}` : ''}`)
+      .join('\n');
+  });
 
   // 사용목적 변경 시 카테고리 초기화
   useEffect(() => {
@@ -748,6 +810,36 @@ function ExpenseFormModal({
     const month = m ? parseInt(m[1], 10) : selectedMonth;
     const day = m ? parseInt(m[2], 10) : 1;
 
+    // 세부 내역 텍스트 파싱
+    const parsedDetails = detailsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const tokens = line.split(/\s+/);
+        if (tokens.length < 2) return null;
+        
+        const lastToken = tokens[tokens.length - 1];
+        const lastNum = parseInt(lastToken, 10);
+        
+        if (tokens.length >= 3 && !isNaN(lastNum)) {
+          const secondLastToken = tokens[tokens.length - 2];
+          const secondLastNum = parseInt(secondLastToken, 10);
+          if (!isNaN(secondLastNum)) {
+            const name = tokens.slice(0, tokens.length - 2).join(' ');
+            return { name, amount: secondLastNum, qty: lastNum } as ReceiptDetail;
+          }
+        }
+        
+        if (!isNaN(lastNum)) {
+          const name = tokens.slice(0, tokens.length - 1).join(' ');
+          return { name, amount: lastNum, qty: 1 } as ReceiptDetail;
+        }
+        
+        return null;
+      })
+      .filter((d): d is ReceiptDetail => d !== null);
+
     const data = {
       purpose,
       date,
@@ -761,6 +853,7 @@ function ExpenseFormModal({
       category,
       paymentMethod,
       memo,
+      receiptDetails: parsedDetails,
     };
 
     if (mode === 'add') {
@@ -938,6 +1031,20 @@ function ExpenseFormModal({
               />
             </div>
           </div>
+
+          {/* 영수증 세부 내역 직접 편집 */}
+          <div className="border-t border-gray-100 pt-3">
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold text-gray-500 block">🧾 영수증 세부 품목 직접 입력/수정</label>
+              <span className="text-[9px] text-gray-400">형식: 품목명 금액 [수량]</span>
+            </div>
+            <textarea
+              value={detailsText}
+              onChange={(e) => setDetailsText(e.target.value)}
+              placeholder="예: 서울우유 1.8L 5400 1&#10;신라면 5입 4100 2"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-pink-300 font-mono h-24 resize-none bg-gray-50/50"
+            />
+          </div>
         </div>
 
         <div className="flex gap-2.5 mt-5">
@@ -956,6 +1063,88 @@ function ExpenseFormModal({
             {mode === 'add' ? '추가하기' : '수정완료'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 영수증 상세 품목 조회 모달 컴포넌트 ──────────────────
+interface ReceiptDetailModalProps {
+  expense: Expense;
+  onClose: () => void;
+}
+
+function ReceiptDetailModal({ expense, onClose }: ReceiptDetailModalProps) {
+  const details = expense.receiptDetails || [];
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-3xl shadow-card w-full max-w-sm p-6 border border-gray-100 flex flex-col font-mono text-xs text-gray-800 fade-in">
+        {/* 상단 톱니 스티커 느낌 장식 */}
+        <div className="flex justify-center -mt-6 mb-4">
+          <div className="bg-pink-100 text-pink-700 text-[10px] px-3 py-1 rounded-full font-bold shadow-soft">
+            RECEIPT DETAILS
+          </div>
+        </div>
+
+        <div className="text-center mb-3">
+          <h3 className="text-sm font-bold text-gray-700 mb-1">🛒 {expense.place || '구매처 정보 없음'}</h3>
+          <p className="text-[10px] text-gray-400">일시: {expense.date} · 구분: {expense.purpose}</p>
+        </div>
+
+        <div className="border-t border-dashed border-gray-300 my-2" />
+
+        {/* 품목 리스트 */}
+        <div className="flex-1 overflow-y-auto max-h-[300px] py-1 space-y-1.5">
+          <div className="flex justify-between font-bold text-gray-500 mb-1">
+            <span>품목명</span>
+            <div className="flex gap-4">
+              <span className="w-8 text-center">수량</span>
+              <span className="w-16 text-right">금액</span>
+            </div>
+          </div>
+
+          <div className="border-t border-dashed border-gray-100 my-1" />
+
+          {details.map((item, idx) => (
+            <div key={idx} className="flex justify-between items-start gap-2">
+              <span className="text-gray-700 truncate max-w-[180px]">{item.name}</span>
+              <div className="flex gap-4 items-center shrink-0">
+                <span className="w-8 text-center text-gray-500">{item.qty ?? 1}</span>
+                <span className="w-16 text-right text-gray-700 tabular-nums">{(item.amount).toLocaleString('ko-KR')}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-dashed border-gray-300 my-2.5" />
+
+        {/* 합계 */}
+        <div className="flex justify-between items-center text-sm font-bold text-gray-900 mb-4">
+          <span>합계 금액</span>
+          <span className="text-pink-600 text-base font-extrabold tabular-nums">
+            {(expense.amount).toLocaleString('ko-KR')}원
+          </span>
+        </div>
+
+        {/* 상세 설명 (있을 때만) */}
+        {expense.memo && (
+          <div className="bg-gray-50 rounded-xl p-2.5 text-[10px] text-gray-500 mb-4 italic">
+            💬 {expense.memo}
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-2xl transition-colors font-medium text-xs text-center"
+        >
+          확인 (닫기)
+        </button>
       </div>
     </div>
   );
