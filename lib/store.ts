@@ -216,7 +216,7 @@ export const useBudgetStore = create<BudgetStore>()(
     }),
     {
       name: 'budget-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, _version: number) => {
         if (!persistedState || typeof persistedState !== 'object') return persistedState;
         const state = persistedState as Record<string, unknown>;

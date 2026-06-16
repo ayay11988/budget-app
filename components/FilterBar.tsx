@@ -151,7 +151,7 @@ export default function FilterBar({ onClose }: { onClose?: () => void }) {
       <div>
         <label className="text-xs font-semibold text-gray-300 mb-2 block uppercase tracking-wide">카테고리</label>
         <div className="flex flex-col gap-2 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
-          {categories.map((c) => (
+          {[...categories].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map((c) => (
             <FilterCheck
               key={c.id}
               label={c.name}

@@ -283,7 +283,8 @@ export default function ExpenseTable() {
     Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
   );
   const editingExpense = rows.find((r) => r.id === editCell?.id);
-  const filteredCats = (purpose: Purpose) => categories.filter((c) => c.purpose === purpose);
+  const filteredCats = (purpose: Purpose) =>
+    categories.filter((c) => c.purpose === purpose).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const colSpanTotal = persons.length !== 1 ? 11 : 10;
 
   // ── 셀 렌더 ──────────────────────────────────────
@@ -866,7 +867,7 @@ function ExpenseFormModal({
     onClose();
   }
 
-  const filteredCats = categories.filter((c) => c.purpose === purpose);
+  const filteredCats = categories.filter((c) => c.purpose === purpose).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
   return (
     <div className="fixed inset-0 bg-black/40 modal-overlay z-50 flex items-center justify-center p-4">
