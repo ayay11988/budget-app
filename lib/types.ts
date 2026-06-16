@@ -22,6 +22,13 @@ export interface Person {
   name: string;
 }
 
+// 영수증 상세 품목 인터페이스
+export interface ReceiptDetail {
+  name: string;
+  amount: number;
+  qty?: number;
+}
+
 // 지출 항목 (가계부 한 행 = 하나의 지출)
 export interface Expense {
   id: string;
@@ -39,6 +46,7 @@ export interface Expense {
   memo: string;             // 기타 메모 (비용처리 상태 등 자유 기록)
   categoryConfidence?: number;  // AI 분류 신뢰도 (0.0~1.0)
   categoryReason?: string;      // AI 분류 이유 (한 줄)
+  receiptDetails?: ReceiptDetail[]; // 영수증 세부 품목 리스트
   createdAt: string;        // 생성 시각 (ISO 문자열)
 }
 
@@ -75,6 +83,7 @@ export interface ReceiptItem {
   place: string;
   amount: number;
   method: PaymentMethod | '';
+  receiptDetails?: ReceiptDetail[]; // 영수증 세부 품목 리스트
 }
 
 // 엑셀 불러오기 모드
