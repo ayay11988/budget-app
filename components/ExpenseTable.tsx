@@ -20,6 +20,36 @@ import toast from 'react-hot-toast';
 const PURPOSES: Purpose[] = ['생활용', '사업용', '개인용'];
 const METHODS: PaymentMethod[] = ['현금', '체크카드', '신용카드', '계좌이체', '기타'];
 
+/** 정산 규칙 안내 카드 (fixed 우하단 팝업) */
+function SettlementHintCard() {
+  return (
+    <div className="fixed bottom-6 right-6 z-[100] w-72 bg-white border border-blue-200 rounded-2xl shadow-2xl p-4 text-xs pointer-events-none">
+      <div className="font-bold text-blue-700 text-[11px] mb-3">🧾 정산 자동계산 규칙</div>
+      <div className="space-y-2.5">
+        <div className="flex items-start gap-2.5">
+          <code className="shrink-0 bg-gray-100 border border-gray-200 text-gray-600 px-2 py-1 rounded-lg text-[10px] font-mono whitespace-nowrap">(정산 0명)</code>
+          <div>
+            <div className="text-gray-700 font-medium">미정산 표시</div>
+            <div className="text-gray-400 text-[10px] mt-0.5">계산 없이 표시만 됩니다</div>
+          </div>
+        </div>
+        <div className="h-px bg-gray-100" />
+        <div className="flex items-start gap-2.5">
+          <code className="shrink-0 bg-blue-50 border border-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[10px] font-mono whitespace-nowrap">(정산 N명 완료)</code>
+          <div>
+            <div className="text-gray-700 font-medium">금액 ÷ N 자동 계산</div>
+            <div className="text-gray-400 text-[10px] mt-0.5">메모에 실결제 금액 자동 기록</div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 pt-2.5 border-t border-gray-100 text-[10px] text-gray-400">
+        예) 회식비 90,000원 + <code className="bg-gray-100 px-1 rounded">(정산 3명 완료)</code><br/>
+        → 내 몫 30,000원 · 메모: 실결제 ₩90,000
+      </div>
+    </div>
+  );
+}
+
 /** "(정산 N명 완료)" 패턴에서 N 추출 (완료 없으면 null) */
 function parseSettlement(item: string): number | null {
   const match = item.match(/\(정산\s*(\d+)명\s*완료\)/);
@@ -110,6 +140,7 @@ export default function ExpenseTable() {
   // ── 체크박스 선택 (일괄 삭제용) ──────────────────
   const [checkIds, setCheckIds] = useState<Set<string>>(new Set());
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [liveEditValue, setLiveEditValue] = useState('');
 
   // ── 드래그 선택 (합계 표시용) ────────────────────
   // ref 사용: 드래그 시작 행 인덱스 (state 아님 → 클릭에 영향 없음)
@@ -185,6 +216,7 @@ export default function ExpenseTable() {
     }
     setEditCell({ id: expense.id, field });
     setEditValue(v);
+    setLiveEditValue(v);
   }
 
   // ── 탭 이동 순서 (사용목적은 클릭 전환이므로 제외) ──
@@ -283,6 +315,9 @@ export default function ExpenseTable() {
     Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
   );
   const editingExpense = rows.find((r) => r.id === editCell?.id);
+  const showSettlementHint =
+    (editCell?.field === 'item' && liveEditValue.includes('정산')) ||
+    newRow.item.includes('정산');
   const filteredCats = (purpose: Purpose) =>
     categories.filter((c) => c.purpose === purpose).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const colSpanTotal = persons.length !== 1 ? 11 : 10;
@@ -387,6 +422,7 @@ export default function ExpenseTable() {
         <input
           autoFocus type="text"
           defaultValue={editValue}
+          onChange={field === 'item' ? (e) => setLiveEditValue(e.target.value) : undefined}
           onBlur={(e) => saveEditValue(expense, field === 'amount' ? formatAmountInput(e.target.value) : e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Tab') {
@@ -582,6 +618,8 @@ export default function ExpenseTable() {
             onClose={() => setViewReceiptExpense(null)}
           />
         )}
+
+        {showSettlementHint && <SettlementHintCard />}
       </div>
     );
   }
@@ -748,6 +786,8 @@ export default function ExpenseTable() {
           onClose={() => setViewReceiptExpense(null)}
         />
       )}
+
+      {showSettlementHint && <SettlementHintCard />}
     </div>
   );
 }
@@ -960,6 +1000,21 @@ function ExpenseFormModal({
                 placeholder="예: 마트 장보기"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-pink-300"
               />
+              {item.includes('정산') && (
+                <div className="mt-1.5 p-2.5 bg-blue-50 border border-blue-100 rounded-xl">
+                  <div className="text-[10px] font-semibold text-blue-700 mb-1.5">🧾 정산 자동계산 규칙</div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <code className="shrink-0 bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono text-[9px] whitespace-nowrap">(정산 0명)</code>
+                      <span className="text-[10px] text-gray-500">미정산 표시</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <code className="shrink-0 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-mono text-[9px] whitespace-nowrap">(정산 N명 완료)</code>
+                      <span className="text-[10px] text-gray-500">금액 ÷ N · 메모에 실결제 금액</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {/* 구매처 */}
             <div>
